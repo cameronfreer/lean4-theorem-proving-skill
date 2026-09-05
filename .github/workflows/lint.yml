@@ -204,6 +204,14 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # Pin the interpreter this job's /disprove self-tests run under to the
+      # documented /disprove floor (Python 3.11+, stdlib tomllib) instead of
+      # whatever python3 ubuntu-latest ships — so the suites exercise the
+      # minimum supported version reproducibly rather than a floating newer one.
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
       # Until this job, lint_docs.sh was maintainer-run only: CI ran
       # ruff/mypy/shellcheck plus the bash3 self-tests, and those
       # self-tests deliberately ignore lint_docs' overall exit status
@@ -228,7 +236,7 @@ jobs:
       # workflow (audit after #195). They live here rather than in the
       # python-tests job because the disprove scripts require Python 3.11+
       # (stdlib tomllib) while python-tests pins the documented 3.10 floor;
-      # this job uses the runner's system python3.
+      # this job pins Python 3.11 via setup-python (see the job header).
       - name: Self-test — disprove emit-artifact writer
         run: bash plugins/lean4/tests/test_disprove_emit_artifact.sh
 
