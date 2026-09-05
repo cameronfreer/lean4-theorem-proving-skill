@@ -224,6 +224,32 @@ jobs:
       - name: Self-test — disprove artifact transactions
         run: bash plugins/lean4/tests/test_disprove_artifact_txn.sh
 
+      # The remaining /disprove suites and the cycle tracker were run by no
+      # workflow (audit after #195). They live here rather than in the
+      # python-tests job because the disprove scripts require Python 3.11+
+      # (stdlib tomllib) while python-tests pins the documented 3.10 floor;
+      # this job uses the runner's system python3.
+      - name: Self-test — disprove emit-artifact writer
+        run: bash plugins/lean4/tests/test_disprove_emit_artifact.sh
+
+      - name: Self-test — disprove target profile
+        run: bash plugins/lean4/tests/test_disprove_target_profile.sh
+
+      - name: Self-test — disprove target resolve
+        run: bash plugins/lean4/tests/test_disprove_target_resolve.sh
+
+      - name: Self-test — disprove end-to-end flow
+        run: bash plugins/lean4/tests/test_disprove_flow.sh
+
+      - name: Unit tests — disprove method registry + probe (Python 3.11+)
+        run: |
+          python3 --version
+          python3 plugins/lean4/tests/test_disprove_methods.py
+          python3 plugins/lean4/tests/test_disprove_method_probe.py
+
+      - name: Self-test — cycle tracker
+        run: bash plugins/lean4/tests/test_cycle_tracker.sh
+
       # Also run the lint_docs self-test on Linux so its staleness probes
       # (7–8) exercise the GNU `date -d` branch of Check 20's portable date
       # parser; the macOS bash3-compat job runs the same probes against the
