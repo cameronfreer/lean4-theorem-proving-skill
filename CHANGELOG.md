@@ -1,5 +1,13 @@
 # Changelog
 
+## v4.8.4 (September 2026)
+
+Hardening for the review-output validator's schema loader (#189, the post-#187 follow-up). Trusted-installation edge case; no behavior change for a valid schema.
+
+### Fixed
+
+- **`lean4-skills-validate-review-output` exits 4 cleanly on ill-typed schema machinery instead of tracebacking.** A schema with the correct identity but a wrong-typed keyword *value* — `"properties": []`, `"allOf": null`, `"$defs": "x"`, `"items": 3`, `"required": "version"`, … — previously escaped the identity/keyword guards as an `AttributeError`/`TypeError` (exit 1 with a traceback). `load_output_schema` now runs a recursive keyword-value type check (`properties`/`$defs` objects; `allOf` list; `items`/`if`/`then`/`else` objects; `additionalProperties` bool-or-object; `enum` list; `required` list of strings; `type` a JSON type name or list; `$ref` a `#/$defs/…` string; `minimum` a number) before the identity check, and any residual `AttributeError`/`TypeError`/`KeyError`/`ValueError` raised while inspecting the parsed schema is mapped to `SchemaUnavailableError` (exit 4). Tests: unit cases over nine root and nested mutations, wrapper-level fixtures for `properties: []`, `allOf: null`, and a nested `items: 3` asserting exit 4 with no traceback, and a check that the shipped schema still loads.
+
 ## v4.8.3 (September 2026)
 
 Verification-soundness correction for the per-file compile gate (#166). Documentation and contract check only; no runtime code.
