@@ -1953,6 +1953,42 @@ else
     fi
 fi
 
+# ---------------------------------------------------------------------------
+# Check 40: golf escalation routing (#55). axiom-eliminator is axiom/assumption
+# hygiene only; golf's "statement change / multi-file refactor" handoffs must
+# route statement changes to a report (never applied) and multi-file or
+# strategy-level work to /lean4:refactor, in every golf-side site.
+# ---------------------------------------------------------------------------
+check40_ok=1
+for _c40_f in commands/golf.md agents/proof-golfer.md skills/lean4/references/proof-golfing.md; do
+    _c40_p="$PLUGIN_ROOT/$_c40_f"
+    # Clause-scoped: routes are separated by `;` or `.`, so a later clause
+    # that names axiom-eliminator for axiom hygiene does not trip this.
+    if grep -qiE '(statement change|multi-file)[^.;]*axiom-eliminator|axiom-eliminator[^.;]*(statement change|multi-file)' "$_c40_p"; then
+        fail "Check 40: $_c40_f still routes statement changes / multi-file refactor to axiom-eliminator"
+        check40_ok=0
+    fi
+    if ! grep -qE 'multi-file[^.]*`/lean4:refactor`' "$_c40_p"; then
+        fail "Check 40: $_c40_f must route multi-file / strategy-level refactor to \`/lean4:refactor\`"
+        check40_ok=0
+    fi
+    if ! grep -qiE 'axiom-eliminator \*?\*?only\*?\*? for axiom' "$_c40_p"; then
+        fail "Check 40: $_c40_f must restrict the axiom-eliminator handoff to axiom/assumption hygiene"
+        check40_ok=0
+    fi
+    if ! grep -qiE 'statement change[^.]*(report|never (changes|applies|apply))' "$_c40_p"; then
+        fail "Check 40: $_c40_f must report (not apply) a needed statement change"
+        check40_ok=0
+    fi
+done
+if ! grep -qF 'Escalation target for `/lean4:golf`' "$PLUGIN_ROOT/commands/refactor.md"; then
+    fail "Check 40: refactor.md must document that it is golf's escalation target"
+    check40_ok=0
+fi
+if [[ "$check40_ok" -eq 1 ]]; then
+    ok "Check 40: golf escalation routing pinned (#55: statement changes reported, multi-file/strategy → /lean4:refactor, axiom-eliminator = axiom hygiene only)"
+fi
+
 if [[ "$check39_ok" -eq 1 ]]; then
     ok "Check 39: file-gate scope pinned (#166: canonical section w/ both failure directions + both recovery paths, cited sites corrected, cross-file editors routed, disprove REFUTED licensed by lake lean <target-file>, no naive module-name derivation)"
 fi

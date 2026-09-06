@@ -10,6 +10,8 @@ Strategy-level proof simplification: find better proof approaches, leverage math
 
 **Mutating command:** Edits files with user approval. Does not change theorem statements, introduce axioms, or create commits.
 
+**Escalation target for `/lean4:golf`.** Golf is local tactic cleanup of one proof; when a golf replacement needs a multi-file or strategy-level change — extracting a helper, moving declarations between files, switching the proof approach — golf hands off here. Axiom/assumption hygiene goes to the axiom-eliminator agent instead; a needed statement change is reported to you rather than applied by either.
+
 ## Usage
 
 ```

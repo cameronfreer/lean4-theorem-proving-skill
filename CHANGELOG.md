@@ -1,5 +1,13 @@
 # Changelog
 
+## v4.8.5 (September 2026)
+
+Routing correction for `/lean4:golf`'s escalation (#55). Documentation and contract check only.
+
+### Fixed
+
+- **Golf no longer hands "statement changes or multi-file refactor" to the axiom-eliminator agent.** That agent is axiom/assumption hygiene only, but three golf-side handoff lines (`golf.md`, `agents/proof-golfer.md`, `references/proof-golfing.md` ×2) used it as a generic "bigger surgery" target. The routing is now: a needed **statement change** is reported, never applied (golf and `/lean4:refactor` both keep statements fixed; the agent reports `next_action = redraft`); a **multi-file or strategy-level refactor** — helper extraction, moving declarations between files, a different proof approach — hands off to `/lean4:refactor`; axiom-eliminator is used **only** for axiom/assumption hygiene. `refactor.md` now states it is golf's escalation target. Check 40 pins the routing at every golf-side site and rejects the old formulation.
+
 ## v4.8.3 (September 2026)
 
 Verification-soundness correction for the per-file compile gate (#166). Documentation and contract check only; no runtime code.

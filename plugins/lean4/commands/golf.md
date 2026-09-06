@@ -49,7 +49,7 @@ Improve Lean proofs that already compile. Score candidates by: correctness → d
    - Run LSP searches per candidate; test with `lean_multi_attempt`
    - `quick`: 1 search, ≤2 candidates; `full`: 2 searches, ≤3 candidates; ≤3 search calls; uses remaining shared time budget
    - Accept the best passing replacement by the scoring order below
-   - Hand off to axiom-eliminator if replacement needs statement changes or multi-file refactor
+   - If a replacement needs a statement change → stop and report it (golf never changes statements); if it needs a multi-file or strategy-level refactor → hand off to `/lean4:refactor`; hand off to axiom-eliminator only for axiom/assumption hygiene
 5. **Verify Safety** - Check usage before inlining:
    ```bash
    lean4-skills-analyze-let-usage [file] --line [line]

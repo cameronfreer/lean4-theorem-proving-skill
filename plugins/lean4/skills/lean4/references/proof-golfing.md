@@ -145,7 +145,7 @@ When search mode is enabled, replacement candidates follow the same safety rules
 - Only accept if `lean_multi_attempt` passes
 - Only accept if the replacement scores better by the lexicographic order (directness → inference burden → perf → length)
 - Max one new import per replacement
-- If replacement type-mismatches or needs statement changes → skip (hand off to axiom-eliminator)
+- If replacement type-mismatches → skip. If it would only work with a **statement change** → skip and report it (golf never changes statements; a statement change needs explicit approval). If it needs a **multi-file or strategy-level refactor** → hand off to `/lean4:refactor`. Hand off to axiom-eliminator **only** for axiom/assumption hygiene.
 
 ### Phase 2.6: Bulk Rewrite Context Safety
 
@@ -195,7 +195,7 @@ When `--search` is enabled, the golfer performs a bounded LSP search pass before
 
 **Budgets:** `quick` = 1 search, ≤2 candidates; `full` = 2 searches, ≤3 candidates. Max 3 search calls total, ≤60s.
 
-**Handoff:** If replacement needs statement changes or multi-file refactor → hand off to axiom-eliminator.
+**Handoff:** Golf is local tactic cleanup of one proof. If a replacement needs a **statement change** → stop and report it (statement changes need explicit approval; golf never applies them). If it needs a **multi-file or strategy-level refactor** — helper extraction, moving declarations between files, a different proof approach — → hand off to `/lean4:refactor`. Hand off to axiom-eliminator **only** for axiom/assumption hygiene (custom axioms, `sorryAx`, non-whitelisted dependencies). Escalation chain: golf → `/lean4:refactor` → axiom-eliminator, each for its own kind of work.
 
 ## Bulk Rewrite Rules
 
