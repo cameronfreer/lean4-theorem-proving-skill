@@ -34,9 +34,12 @@ Concretely (one test family per numbered group below):
 7. Success (direct and witness shapes) → all gate blocks gone, artifact kept,
    the gate-free file re-elaborates, and (module variant) a consumer can use
    the artifact after an explicit module build.
-8. Inconclusive evidence: missing / wrong-declaration / truncated / conflicting
-   ``#print axioms`` records are REJECTED by the certification helper, never
-   read as an empty axiom set.
+8. Inconclusive evidence: missing / wrong-declaration / truncated / malformed
+   (``[,]``, ``[]``, non-name entries) / conflicting ``#print axioms`` records
+   are REJECTED by the certification helper, never read as an empty axiom
+   set. Acceptance requires ONE CONSISTENT axiom set for the expected
+   declaration (identical duplicate records are fine; a malformed record for
+   it poisons the run even beside a clean one).
 
 What this does NOT establish: that an agent follows the documentation
 (Check 39 in tools/test_contracts.sh pins the prose), or the persistent-LSP
@@ -76,6 +79,11 @@ _DEPENDS = re.compile(
     r"^'(?P<name>[^']+)' depends on axioms: \[(?P<axioms>[^\]]*)\]\s*$"
 )
 _NO_AXIOMS = re.compile(r"^'(?P<name>[^']+)' does not depend on any axioms\s*$")
+# Anything that starts like a record but did not fully match one of the two
+# well-formed shapes above is MALFORMED evidence for that declaration.
+_RECORD_PREFIX = re.compile(r"^'(?P<name>[^']+)' (?:depends on axioms|does not depend)")
+# A printed axiom entry: a (possibly dotted) Lean name, e.g. `Classical.choice`.
+_LEAN_NAME = re.compile(r"^[A-Za-z_«][^\s,\[\]]*$")
 
 TIMEOUT = 600  # seconds per lake invocation; generous for a cold toolchain
 
@@ -85,25 +93,34 @@ TIMEOUT = 600  # seconds per lake invocation; generous for a cold toolchain
 # ---------------------------------------------------------------------------
 
 
-def parse_axiom_records(text: str) -> list[tuple[str, frozenset[str]]]:
-    """Return every recognised `#print axioms` record as (name, axiom set).
+def parse_axiom_records(text: str) -> list[tuple[str, frozenset[str] | None]]:
+    """Return every `#print axioms` record as (name, axiom set | None).
 
     An explicit "does not depend on any axioms" is an affirmative EMPTY set.
-    Anything else on a line is not a record.
+    A line that STARTS like a record for some declaration but is not a
+    complete, well-formed one — truncated list, empty/blank entries such as
+    ``[,]`` or ``[]``, an entry that is not a Lean name — is returned as
+    ``(name, None)``: MALFORMED evidence for that declaration, never silently
+    dropped. Lines that do not look like records at all are ignored.
     """
-    records: list[tuple[str, frozenset[str]]] = []
+    records: list[tuple[str, frozenset[str] | None]] = []
     for raw in text.splitlines():
         line = raw.strip()
-        m = _DEPENDS.match(line)
-        if m:
-            axioms = frozenset(
-                a.strip() for a in m.group("axioms").split(",") if a.strip()
-            )
-            records.append((m.group("name"), axioms))
-            continue
         m = _NO_AXIOMS.match(line)
         if m:
             records.append((m.group("name"), frozenset()))
+            continue
+        m = _DEPENDS.match(line)
+        if m:
+            entries = [a.strip() for a in m.group("axioms").split(",")]
+            if entries and all(_LEAN_NAME.match(a) for a in entries):
+                records.append((m.group("name"), frozenset(entries)))
+            else:
+                records.append((m.group("name"), None))
+            continue
+        m = _RECORD_PREFIX.match(line)
+        if m:
+            records.append((m.group("name"), None))
     return records
 
 
@@ -118,7 +135,7 @@ class Verdict:
     status: str
     reason: str
     axioms: frozenset[str] | None
-    records: list[tuple[str, frozenset[str]]] = field(default_factory=list)
+    records: list[tuple[str, frozenset[str] | None]] = field(default_factory=list)
 
 
 def decide(
@@ -146,14 +163,26 @@ def decide(
             None,
             records,
         )
-    if len(set(mine)) > 1:
+    if any(ax is None for ax in mine):
+        # Malformed evidence for the expected declaration poisons the run even
+        # when a complete clean record is also present.
         return Verdict(
             "inconclusive",
-            f"conflicting axiom records for {expected_decl!r}: {[sorted(m) for m in mine]}",
+            f"malformed #print axioms record for {expected_decl!r}",
             None,
             records,
         )
-    axioms = mine[0]
+    sets = {ax for ax in mine if ax is not None}
+    if len(sets) > 1:
+        # Identical duplicates are one consistent axiom set; differing sets
+        # for the same declaration are conflicting evidence.
+        return Verdict(
+            "inconclusive",
+            f"conflicting axiom records for {expected_decl!r}: {[sorted(s) for s in sets]}",
+            None,
+            records,
+        )
+    axioms = next(iter(sets))
     forbidden = axioms - allowed
     if forbidden:
         return Verdict(
@@ -343,7 +372,18 @@ class LeanFileGateCase(unittest.TestCase):
             result = getattr(outcome, "result", None)
             if result is not None:
                 failed = any(t is self for t, _ in result.failures + result.errors)
-        if failed and os.environ.get("LEAN_FILE_GATE_KEEP", "1") == "1":
+        keep_dir = os.environ.get("LEAN_FILE_GATE_KEEP_DIR")
+        if failed and keep_dir:
+            # CI: export the failing project (sources AND .lake artifacts —
+            # the artifact state is part of the evidence) plus a transcript
+            # of every command run, so the failure survives the runner.
+            dest = os.path.join(keep_dir, self.id().replace(".", "_"))
+            shutil.copytree(self.p.root, dest, dirs_exist_ok=True)
+            with open(os.path.join(dest, "COMMANDS.log"), "w", encoding="utf-8") as f:
+                f.write("\n\n".join(r.describe() for r in self.p.log))
+            sys.stderr.write(f"[lean_file_gate] exported failing project to {dest}\n")
+            shutil.rmtree(self._tmp, ignore_errors=True)
+        elif failed and os.environ.get("LEAN_FILE_GATE_KEEP", "1") == "1":
             sys.stderr.write(
                 f"[lean_file_gate] kept failing project at {self.p.root}\n"
             )
@@ -1039,6 +1079,30 @@ class T8Matcher(unittest.TestCase):
             "T_counterexample",
         )
         self.assertEqual(v.status, "inconclusive")
+
+    def test_truncated_record_alongside_a_clean_one_is_inconclusive(self) -> None:
+        # A malformed record for the EXPECTED declaration poisons the run even
+        # though a complete clean record is also present (review of #198).
+        out = self.OK + "'T_counterexample' depends on axioms: [regressionBad,\n"
+        v = decide(0, out, "T_counterexample")
+        self.assertEqual(v.status, "inconclusive", v)
+        self.assertIn("malformed", v.reason)
+
+    def test_empty_or_blank_entries_are_malformed_not_empty_set(self) -> None:
+        for bad in (
+            "'T_counterexample' depends on axioms: [,]\n",
+            "'T_counterexample' depends on axioms: []\n",
+            "'T_counterexample' depends on axioms: [propext, ]\n",
+            "'T_counterexample' depends on axioms: [propext, not a name]\n",
+        ):
+            with self.subTest(bad.strip()):
+                v = decide(0, bad, "T_counterexample")
+                self.assertEqual(v.status, "inconclusive", v)
+                self.assertIsNone(v.axioms)
+
+    def test_malformed_record_for_another_declaration_does_not_poison(self) -> None:
+        out = self.OK + "'Other' depends on axioms: [regressionBad,\n"
+        self.assertEqual(decide(0, out, "T_counterexample").status, "certified")
 
     def test_truncated_record_is_not_a_record(self) -> None:
         v = decide(

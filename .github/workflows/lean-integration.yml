@@ -59,5 +59,17 @@ jobs:
 
       - name: Lean/Lake file-gate integration suite
         env:
-          LEAN_FILE_GATE_KEEP: "1"
+          # On failure the suite exports each failing project (sources, .lake
+          # artifacts, and a COMMANDS.log transcript) here; uploaded below so
+          # the evidence outlives the runner.
+          LEAN_FILE_GATE_KEEP_DIR: ${{ runner.temp }}/lean_file_gate_failures
         run: python3 plugins/lean4/tests/integration/test_lean_file_gate.py -v
+
+      - name: Upload failing projects + command transcripts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lean-file-gate-failures
+          path: ${{ runner.temp }}/lean_file_gate_failures
+          if-no-files-found: ignore
+          retention-days: 14
