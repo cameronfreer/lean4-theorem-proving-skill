@@ -19,7 +19,7 @@ When working with sub-σ-algebras and conditional expectation:
 
 1. **Make ambient space explicit:** `{m₀ : MeasurableSpace Ω}` (never `‹_›`)
 2. **Correct binder order:** All instance parameters first, THEN plain parameters
-3. **Use `haveI`** to provide trimmed measure instances before calling mathlib
+3. **Check whether synthesis already succeeds** before adding local instances: `IsFiniteMeasure (μ.trim hm)` is a Mathlib instance, and `SigmaFinite (μ.trim hm)` follows from it. If you still freeze one, use plain `have` (it registers the instance; `haveI` only inlines, which is irrelevant in a proof)
 4. **Avoid instance pollution:** Pin ambient (`let m0 := ‹...›`), use `@` for ambient facts (see [instance-pollution.md](instance-pollution.md))
 5. **Prefer set-integral projection:** Use `set_integral_condexp` instead of proving `μ[g|m] = g`
 6. **Rewrite products to indicators:** `f * indicator` → `indicator f` avoids measurability issues
@@ -34,7 +34,7 @@ When working with sub-σ-algebras and conditional expectation:
 |------|-------|-------|
 | CE integrability | `integrable_condexp` | Always available |
 | Project CE to set integral | `set_integral_condexp` | Use this, not a.e. equality |
-| Trim measure instance | `sigmaFinite_trim μ hm` | After `haveI` |
+| Trim measure instance | `inferInstance` (via the `isFiniteMeasure_trim` instance + `IsFiniteMeasure.toSigmaFinite`) | Optional freeze: `have : SigmaFinite (μ.trim hm) := inferInstance` |
 | Preimage measurability | `measurableSet_preimage hf hs` | Function syntax |
 | Lift sub-σ-algebra set | `hm _ hs_m` where `hm : m ≤ m₀` | Direct application |
 
@@ -98,10 +98,12 @@ lemma my_condexp_lemma
     {m : MeasurableSpace Ω} (hm : m ≤ m₀)  -- ✅ Explicit relation
     {f : Ω → ℝ} (hf : Integrable f μ) :
     ... μ[f|m] ... := by
-  -- Provide instances explicitly:
-  haveI : IsFiniteMeasure μ := inferInstance
-  haveI : IsFiniteMeasure (μ.trim hm) := isFiniteMeasure_trim μ hm
-  haveI : SigmaFinite (μ.trim hm) := sigmaFinite_trim μ hm
+  -- Check whether synthesis already succeeds before adding local instances:
+  -- `[IsFiniteMeasure μ]` is in scope, `IsFiniteMeasure (μ.trim hm)` is a Mathlib
+  -- instance (`isFiniteMeasure_trim`), and `SigmaFinite (μ.trim hm)` follows from
+  -- it (`IsFiniteMeasure.toSigmaFinite`). Only the σ-finiteness freeze is worth
+  -- keeping, and plain `have` registers it (`haveI` would only inline):
+  have : SigmaFinite (μ.trim hm) := inferInstance
 
   -- Now CE and mathlib lemmas work
   ...
@@ -110,7 +112,7 @@ lemma my_condexp_lemma
 **Key elements:**
 - `{m₀ : MeasurableSpace Ω}` - explicit ambient space
 - `(hm : m ≤ m₀)` - explicit relation (not `m ≤ ‹_›`)
-- `haveI` for trimmed measure instances before using CE
+- Check synthesis first; freeze `SigmaFinite (μ.trim hm)` with plain `have` only if it helps
 
 ---
 
@@ -138,7 +140,7 @@ lemma good {Ω : Type*} [inst : MeasurableSpace Ω]
 
 ## Common Error Messages
 
-**"typeclass instance problem is stuck"** → Add `haveI` for trimmed measure instances
+**"typeclass instance problem is stuck"** → Freeze the trimmed-measure instance with plain `have : SigmaFinite (μ.trim hm) := inferInstance` (check first whether synthesis already succeeds)
 
 **"has type @MeasurableSet Ω m B but expected @MeasurableSet Ω m₀ B"** → Check binder order
 
@@ -330,7 +332,7 @@ have hCEη : μ[f | MeasurableSpace.comap η mγ] =ᵐ[μ]
 1. Never use `set` with `MeasurableSpace.comap ... inferInstance`
 2. Freeze ambient with `let` only for explicit passing to lemmas
 3. Inline comaps at every use site - trust Lean's unification
-4. `haveI` adds MORE instances without fixing drift
+4. Adding local instances (`have`/`haveI`) adds MORE instances without fixing drift
 5. Use explicit type annotations when needed: `(hη ht : @MeasurableSet Ω mΩ ...)`
 
 **Real-world impact:** Resolved ALL instance synthesis errors in 150-line conditional expectation proofs (Kallenberg Lemma 1.3).
@@ -711,7 +713,7 @@ have := condExp_ae_eq_integral_condExpKernel (μ := μ) (m := tailSigma X) (hm :
 **Manual instances:**
 ```lean
 -- Provide instance explicitly
-haveI : IsProbabilityMeasure (μ.map f) := isProbabilityMeasure_map hf hμ
+have : IsProbabilityMeasure (μ.map f) := isProbabilityMeasure_map hf hμ
 ```
 
 **Type annotations:**

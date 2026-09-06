@@ -1,5 +1,14 @@
 # Changelog
 
+## v4.8.6 (September 2026)
+
+Local-instance guidance corrected for Lean 4 (#188) and the obsolete trimmed-measure idiom removed (#162). Documentation and contract check only.
+
+### Fixed
+
+- **`have`/`let` are the default for local instances; `haveI`/`letI` differ only by inlining.** The skill recommended `haveI`/`letI` as the way to create local typeclass instances — correct in Lean 3, wrong in Lean 4, where `have` and `let` already register a class-typed local for synthesis (verified on Lean 4.33.1 in tactic and term mode). In a tactic proof of a proposition the inlining can have no effect (proof irrelevance), so `haveI`/`letI` are never needed there and Mathlib's [`haveI`/`letI` linter](https://leanprover-community.github.io/mathlib4_docs/Mathlib/Tactic/Linter/HaveILetI.html) flags them; `letI` is reserved for definitions where the instance *value* must be inlined into data. SKILL.md's Type Class Patterns states the rule with the linter link and a "check whether synthesis already succeeds" step; every proof-context example that prescribed `haveI`/`letI` (compilation-errors, instance-pollution, measure-theory, domain-patterns, compiler-guided-repair, tactic-patterns, agent-workflows, command-examples, review, cycle-engine, proof-repair) now uses `have`/`let`. instance-pollution.md's "use plain `let` for data" fix was itself a Lean-3-ism — plain `let` registers a class-typed local just as `letI` does — and now says pollution comes from the extra class-typed local, not the keyword.
+- **`isFiniteMeasure_trim μ hm` / `sigmaFinite_trim μ hm` removed (#162).** `IsFiniteMeasure (μ.trim hm)` is a Mathlib `instance` now (`isFiniteMeasure_trim`, with `μ` implicit — the old term would not even typecheck), `SigmaFinite (μ.trim hm)` follows from it via `IsFiniteMeasure.toSigmaFinite`, and no plain `sigmaFinite_trim` exists in `Mathlib.MeasureTheory.Measure.Trim` any more. measure-theory.md, domain-patterns.md, and compilation-errors.md drop both `IsFiniteMeasure` declarations, keep the σ-finiteness freeze as the optional `have : SigmaFinite (μ.trim hm) := inferInstance`, and lead with the general rule: check whether synthesis already succeeds before adding a local instance. Check 41 pins the SKILL.md rule, rejects any `haveI`/`letI` example line in the touched references, rejects the two stale trim idioms repo-wide, and requires the synthesis-first wording.
+
 ## v4.8.4 (September 2026)
 
 Hardening for the review-output validator's schema loader (#189, the post-#187 follow-up). Trusted-installation edge case; no behavior change for a valid schema.

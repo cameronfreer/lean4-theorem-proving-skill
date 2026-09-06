@@ -1953,6 +1953,67 @@ else
     fi
 fi
 
+# ---------------------------------------------------------------------------
+# Check 41: local-instance guidance (#188 + #162). In Lean 4 plain have/let
+# register class-typed locals for synthesis; haveI/letI differ only by
+# inlining, which is irrelevant in a proof (Mathlib's HaveILetI linter). The
+# skill must state that rule and no proof-context example may prescribe
+# haveI/letI; measure-theory must not carry the stale trim idioms.
+# ---------------------------------------------------------------------------
+check41_ok=1
+_c41_skill="$PLUGIN_ROOT/skills/lean4/SKILL.md"
+_c41_sec=$(extract_section "$_c41_skill" "## Type Class Patterns")
+if [[ -z "$_c41_sec" ]]; then
+    fail "Check 41: SKILL.md missing '## Type Class Patterns'"
+    check41_ok=0
+else
+    for _c41_s in 'register local instances themselves' 'differ only by' 'inlining' \
+                  'Linter/HaveILetI.html' 'check whether synthesis already succeeds'; do
+        if ! grep -qiF -- "$_c41_s" <<<"$_c41_sec"; then
+            fail "Check 41: SKILL.md Type Class Patterns must state the have/let vs haveI/letI rule ($_c41_s)"
+            check41_ok=0
+        fi
+    done
+    if grep -qE '^(haveI|letI) :' <<<"$_c41_sec"; then
+        fail "Check 41: SKILL.md Type Class Patterns still prescribes haveI/letI in its example"
+        check41_ok=0
+    fi
+fi
+# No proof-context example line may START with haveI/letI (diff '+' lines
+# and indented tactic lines included); prose that EXPLAINS the difference may
+# still name them.
+for _c41_f in skills/lean4/SKILL.md skills/lean4/references/compilation-errors.md \
+              skills/lean4/references/instance-pollution.md skills/lean4/references/measure-theory.md \
+              skills/lean4/references/domain-patterns.md skills/lean4/references/compiler-guided-repair.md \
+              skills/lean4/references/tactic-patterns.md skills/lean4/references/agent-workflows.md; do
+    if grep -qE '^[+ ]*(haveI|letI)( [A-Za-z_]+)? :' "$PLUGIN_ROOT/$_c41_f"; then
+        fail "Check 41: $_c41_f still shows a haveI/letI example line: $(grep -nE '^[+ ]*(haveI|letI)( [A-Za-z_]+)? :' "$PLUGIN_ROOT/$_c41_f" | head -1 | cut -c1-90)"
+        check41_ok=0
+    fi
+done
+# #162: the two obsolete trim idioms must not return anywhere in the docs.
+if grep -rqE 'isFiniteMeasure_trim μ hm|sigmaFinite_trim μ hm' "$PLUGIN_ROOT" --include='*.md'; then
+    fail "Check 41: stale trim idiom (isFiniteMeasure_trim μ hm / sigmaFinite_trim μ hm) is back — IsFiniteMeasure (μ.trim hm) is a Mathlib instance and plain sigmaFinite_trim no longer exists"
+    check41_ok=0
+fi
+_c41_mt="$PLUGIN_ROOT/skills/lean4/references/measure-theory.md"
+if ! grep -qF 'have : SigmaFinite (μ.trim hm) := inferInstance' "$_c41_mt"; then
+    fail "Check 41: measure-theory.md must show the optional σ-finiteness freeze via plain have + inferInstance"
+    check41_ok=0
+fi
+if ! grep -qiF 'check whether synthesis already succeeds' "$_c41_mt"; then
+    fail "Check 41: measure-theory.md must tell the reader to check synthesis before adding local instances"
+    check41_ok=0
+fi
+# instance-pollution must not claim plain let is "just data" for a class type.
+if grep -qF 'For data, use plain `let`' "$PLUGIN_ROOT/skills/lean4/references/instance-pollution.md"; then
+    fail "Check 41: instance-pollution.md still claims plain let avoids registering a class-typed local as an instance"
+    check41_ok=0
+fi
+if [[ "$check41_ok" -eq 1 ]]; then
+    ok "Check 41: local-instance guidance pinned (#188/#162: have/let register instances, haveI/letI = inlining only + linter; no haveI/letI example lines; stale trim idioms gone; synthesis-first rule)"
+fi
+
 if [[ "$check39_ok" -eq 1 ]]; then
     ok "Check 39: file-gate scope pinned (#166: canonical section w/ both failure directions + both recovery paths, cited sites corrected, cross-file editors routed, disprove REFUTED licensed by lake lean <target-file>, no naive module-name derivation)"
 fi

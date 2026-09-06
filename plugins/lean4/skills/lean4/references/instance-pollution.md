@@ -341,13 +341,13 @@ theorem test : ... := by
   have h3 : @MeasurableSet Ω m0 s3 := ...   -- ✅ Forces m0
 ```
 
-### ❌ Mistake 3: Using `letI` for non-instance data
+### ❌ Mistake 3: Expecting plain `let` to be "just data" for a class-typed local
 ```lean
-letI mSub : MeasurableSpace Ω := ...  -- ❌ Installs as THE instance!
-have : MeasurableSet s := ...  -- Now EVERYTHING uses mSub
+let mSub : MeasurableSpace Ω := ...  -- ❌ Registers as a local instance (so does `letI`)
+have : MeasurableSet s := ...        -- Now EVERYTHING uses mSub
 ```
 
-**Fix**: Only use `letI` when you actually want to replace the instance. For data, use plain `let` (but follow Solution 2 pattern).
+**Fix**: In Lean 4 any class-typed local — introduced by `let`, `have`, `letI`, or `haveI` — becomes a local instance; `letI`/`haveI` differ only by inlining the value, not by whether the instance is registered. So the mistake is introducing a second `MeasurableSpace Ω` local *before* the ambient work is done, not the choice of keyword. Follow Solution 2: pin the ambient instance first, do ambient facts with `@`, then introduce `mSub`.
 
 ### ❌ Mistake 4: Explicit parameter when section provides instance
 
@@ -422,7 +422,7 @@ apply foo (m := mW) (hm := hmW)  -- ✓ Works
 - **`abbrev` only works at top-level, not in proofs**
 - **Best practice**: Pin ambient instance (`let m0 := ‹...›`) + use `@` notation for ALL ambient facts
 - **`@` notation is NOT optional**: Even if you do ambient work "first," outer scope pollution requires explicit `@`
-- **Never use**: `letI` for data (only for actual instance replacement)
+- **`letI`/`haveI` vs `let`/`have`**: all four register a class-typed local as an instance; the `I` variants only inline the value (irrelevant in proofs — Mathlib's linter flags them there). Pollution comes from the extra class-typed local, not the keyword
 - **Lemma signatures**: Avoid `(by infer_instance)` in signatures when callers construct instances differently; use explicit parameters
 
 The key insights:

@@ -68,7 +68,7 @@ Goal contains: `Measure`, `Measurable`, `μ`, `∫`, `Integrable`, `AEMeasurable
 
 Goal contains: `IsProbabilityMeasure`, `probability`, `condExp`
 
-- `haveI : IsProbabilityMeasure μ := ...` - Provide instance
+- `have : IsProbabilityMeasure μ := ...` - Provide instance (plain `have` registers it)
 - `apply condExp_unique` - Conditional expectation uniqueness
 - `measurability` - Check measurability
 

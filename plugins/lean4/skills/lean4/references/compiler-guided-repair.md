@@ -236,14 +236,14 @@ If success → done! If fail → next iteration (max 24 attempts)
 ### synth_implicit / synth_instance
 
 **Strategies:**
-1. Provide instance: `haveI : Instance := ...`
-2. Local instance: `letI : Instance := ...`
+1. Provide instance: `have : Instance := ...` (registers it; `haveI` only inlines)
+2. Local instance whose value must stay visible (data, not a proof): `let inst : Instance := ...
 3. Open scope: `open scoped Topology`
 4. Reorder arguments (instances before regular params)
 
 **Example:**
 ```diff
-+  haveI : MeasurableSpace β := inferInstance
++  have : MeasurableSpace β := inferInstance
    apply theorem_needing_instance
 ```
 
@@ -456,14 +456,14 @@ theorem foo : MemLp f p μ := by  -- ✓ ASCII name
 **Likely cause:** Missing type class instance in context.
 
 **Fix strategy:**
-1. Add instance: `haveI : Instance := inferInstance`
-2. Or: `letI : Instance := ...`
+1. Add instance: `have : Instance := inferInstance`
+2. Or, when the value must stay visible (data): `let inst : Instance := ...
 3. Check import: may need `import Mathlib.X.Y`
 4. Reorder parameters (instances before regular params)
 
 **Example:**
 ```diff
-+  haveI : MeasurableSpace α := inferInstance
++  have : MeasurableSpace α := inferInstance
    apply theorem_needing_instance
 ```
 
@@ -564,7 +564,7 @@ theorem foo (h : Measurable f) : Continuous f := by
   simp
 ```
 
-### Pattern 2: Missing Instance with haveI
+### Pattern 2: Missing Instance (local `have`)
 
 **Before:**
 ```lean
@@ -575,7 +575,7 @@ theorem bar : Property := by
 **After:**
 ```lean
 theorem bar : Property := by
-  haveI : MeasurableSpace α := inferInstance
+  have : MeasurableSpace α := inferInstance
   apply lemma
 ```
 

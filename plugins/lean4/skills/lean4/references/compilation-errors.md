@@ -6,8 +6,8 @@ This reference provides detailed explanations and fixes for the most common comp
 
 | Error | Cause | Fix |
 |-------|-------|-----|
-| **"failed to synthesize instance"** | Missing type class | Add `haveI : IsProbabilityMeasure μ := ⟨proof⟩` |
-| **"maximum recursion depth"** | Type class loop/complex search | Provide manually: `letI := instance` or increase: `set_option synthInstance.maxHeartbeats 40000` |
+| **"failed to synthesize instance"** | Missing type class | Add `have : IsProbabilityMeasure μ := ⟨proof⟩` (plain `have` registers the instance; `haveI` only inlines) |
+| **"maximum recursion depth"** | Type class loop/complex search | Provide manually: `have := instance` (or `let` when the value must stay visible) or increase: `set_option synthInstance.maxHeartbeats 40000` |
 | **WHNF/isDefEq timeout** (500k+ heartbeats) | Complex function in polymorphic goal | **[performance-optimization.md](performance-optimization.md)** - use `@[irreducible]` wrapper |
 | **"type mismatch"** (has type ℕ but expected ℝ) | Wrong type | Use coercion: `(x : ℝ)` or `↑x` |
 | **"expected Filter got Measure"** | Dot notation namespace confusion | Use standalone: `EventuallyEq.lemma h` not `h.EventuallyEq.lemma` |
@@ -56,22 +56,26 @@ failed to synthesize instance
 
 **Common scenarios:**
 - Working with sub-σ-algebras: `m ≤ m₀` but Lean can't infer instances on `m`
-- Trimmed measures: `μ.trim hm` needs explicit `SigmaFinite` instance
+- Trimmed measures: check whether synthesis already succeeds — `IsFiniteMeasure (μ.trim hm)` is a Mathlib instance now, and `SigmaFinite (μ.trim hm)` follows from it
 - Conditional expectations requiring multiple measure properties
 
 **Solutions:**
 
-**Pattern 1: Explicit instance declaration**
+**Pattern 1: Explicit instance declaration** (plain `have` — it registers the
+instance; `haveI` only inlines the value, which is irrelevant in a proof and is
+flagged by Mathlib's `haveI`/`letI` linter)
 ```lean
-haveI : IsProbabilityMeasure μ := ⟨measure_univ⟩
-haveI : IsFiniteMeasure μ := inferInstance
-haveI : SigmaFinite (μ.trim hm) := sigmaFinite_trim μ hm
+have : IsProbabilityMeasure μ := ⟨measure_univ⟩
+-- Check first whether synthesis already succeeds: with `[IsFiniteMeasure μ]`,
+-- `IsFiniteMeasure (μ.trim hm)` is a Mathlib instance (`isFiniteMeasure_trim`)
+-- and `SigmaFinite (μ.trim hm)` follows from it. Freeze only if it helps:
+have : SigmaFinite (μ.trim hm) := inferInstance
 ```
 
 **Pattern 2: Using Fact for inequalities**
 ```lean
 have h_le : m ≤ m₀ := ...
-haveI : Fact (m ≤ m₀) := ⟨h_le⟩
+have : Fact (m ≤ m₀) := ⟨h_le⟩
 ```
 
 **Pattern 3: Explicit instance passing**
@@ -120,7 +124,7 @@ theorem my_theorem : Goal := by
 
 **Solution 1: Provide instance manually**
 ```lean
-letI : MeasurableSpace Ω := m₀  -- Freeze the instance
+let m0 : MeasurableSpace Ω := m₀  -- Freeze (pin) the instance; plain `let` registers it
 -- Now Lean won't search
 ```
 

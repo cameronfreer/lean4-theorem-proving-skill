@@ -115,7 +115,7 @@ Build fails, error persists. Stage 1 retry:
 +++ Core.lean
 @@ -42,1 +42,2 @@
 -  exact h1
-+  haveI : DiscreteTopology α := inferInstance
++  have : DiscreteTopology α := inferInstance
 +  exact continuous_of_discreteTopology
 ```
 
