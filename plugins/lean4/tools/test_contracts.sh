@@ -1980,9 +1980,58 @@ for _c40_f in commands/golf.md agents/proof-golfer.md skills/lean4/references/pr
         fail "Check 40: $_c40_f must report (not apply) a needed statement change"
         check40_ok=0
     fi
+    # Per-SITE consistency (the anchors above are existential per file):
+    # every line that mentions multi-file work must name /lean4:refactor, and
+    # every line that hands off to axiom-eliminator must restrict it to axiom
+    # hygiene — so one drifted duplicate site cannot hide behind a correct one.
+    while IFS= read -r _c40_line; do
+        if ! grep -qF '`/lean4:refactor`' <<<"$_c40_line"; then
+            fail "Check 40: $_c40_f has a multi-file routing line that does not name \`/lean4:refactor\`: ${_c40_line:0:100}"
+            check40_ok=0
+        fi
+    done < <(grep -iE 'multi-file' "$_c40_p" | grep -viE '^\s*[0-9]+\.\s|lake build')
+    while IFS= read -r _c40_line; do
+        if ! grep -qiE 'only\*?\*? for axiom' <<<"$_c40_line"; then
+            fail "Check 40: $_c40_f hands off to axiom-eliminator without restricting it to axiom hygiene: ${_c40_line:0:100}"
+            check40_ok=0
+        fi
+    done < <(grep -iE 'hand(s|ed)? off to axiom-eliminator|axiom-eliminator (only|if|for|when)' "$_c40_p")
 done
+# Duplicated sites must both be present (Actions + Constraints in the agent;
+# Phase 2.5 + Handoff in the reference).
+for _c40_pair in "agents/proof-golfer.md|2" "skills/lean4/references/proof-golfing.md|2"; do
+    _c40_f="${_c40_pair%%|*}"; _c40_min="${_c40_pair#*|}"
+    _c40_n=$(grep -cE 'multi-file[^.]*`/lean4:refactor`' "$PLUGIN_ROOT/$_c40_f")
+    if [[ "$_c40_n" -lt "$_c40_min" ]]; then
+        fail "Check 40: $_c40_f must carry the routing at $_c40_min sites (found $_c40_n)"
+        check40_ok=0
+    fi
+done
+# The statement-change signal: an unsuitable golf CANDIDATE is not evidence the
+# statement is wrong, so the agent must stop (next_action = stop), never redraft.
+_c40_ag="$PLUGIN_ROOT/agents/proof-golfer.md"
+if grep -qiE 'statement change[^.;]*next_action = redraft' "$_c40_ag"; then
+    fail "Check 40: proof-golfer.md routes a statement-changing candidate to next_action = redraft (wrong signal: candidate unsuitability ≠ wrong statement)"
+    check40_ok=0
+fi
+if ! grep -qF '`next_action = stop`' "$_c40_ag"; then
+    fail "Check 40: proof-golfer.md must hand a statement-change decision back with next_action = stop"
+    check40_ok=0
+fi
+if ! grep -qiE 'multi-file[^.;]*parent' "$_c40_ag"; then
+    fail "Check 40: proof-golfer.md must return the multi-file proposal to the parent (no self-expanded ownership)"
+    check40_ok=0
+fi
 if ! grep -qF 'Escalation target for `/lean4:golf`' "$PLUGIN_ROOT/commands/refactor.md"; then
     fail "Check 40: refactor.md must document that it is golf's escalation target"
+    check40_ok=0
+fi
+if grep -qF 'Golf is local tactic cleanup of one proof' "$PLUGIN_ROOT/commands/refactor.md" "$PLUGIN_ROOT/skills/lean4/references/proof-golfing.md"; then
+    fail "Check 40: 'Golf is local tactic cleanup of one proof' contradicts golf's documented file/project scope — say statement-preserving cleanup, potentially across many proofs"
+    check40_ok=0
+fi
+if ! grep -qE '^6\. \*\*Verify\*\* — `lake lean <file>`' "$PLUGIN_ROOT/commands/refactor.md"; then
+    fail "Check 40: refactor.md Verify step must use the dependency-aware lake lean file gate (cross-file batches)"
     check40_ok=0
 fi
 if [[ "$check40_ok" -eq 1 ]]; then
