@@ -2010,7 +2010,7 @@ done
 # The statement-change signal: an unsuitable golf CANDIDATE is not evidence the
 # statement is wrong, so the agent must stop (next_action = stop), never redraft.
 _c40_ag="$PLUGIN_ROOT/agents/proof-golfer.md"
-if grep -qiE 'statement change[^.;]*next_action = redraft' "$_c40_ag"; then
+if grep -qiE 'next_action[[:space:]]*=[[:space:]]*redraft' "$_c40_ag"; then
     fail "Check 40: proof-golfer.md routes a statement-changing candidate to next_action = redraft (wrong signal: candidate unsuitability ≠ wrong statement)"
     check40_ok=0
 fi
