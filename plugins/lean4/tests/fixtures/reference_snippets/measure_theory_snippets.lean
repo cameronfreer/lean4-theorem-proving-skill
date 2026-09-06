@@ -3,9 +3,11 @@
 --
 --   lake env lean /path/to/lean4-skills/plugins/lean4/tests/fixtures/reference_snippets/measure_theory_snippets.lean
 --
--- Not wired into CI (CI has no Mathlib). Last checked: Mathlib at Lean
--- 4.34.0-rc1 (local checkout) — see the PR #200 body. If you change one of the
--- documented snippets, change it here too and re-run.
+-- Not wired into CI (CI has no Mathlib). Last checked against Mathlib commit
+-- de5ce8a9a66a4aa68a9bdbb35b63a06d34d9ca11 (Lean 4.34.0-rc1, local checkout):
+-- exit 0 — see the PR #200 body. If you change one of the documented snippets,
+-- change it here too and re-run. Negative controls are `#guard_msgs` blocks: the
+-- file fails if a documented failure stops failing or its message drifts.
 import Mathlib.MeasureTheory.Function.ConditionalExpectation.Basic
 import Mathlib.MeasureTheory.Measure.Typeclasses.Probability
 import Mathlib.MeasureTheory.Constructions.BorelSpace.Basic
@@ -79,5 +81,79 @@ example {α : Type*} [t : TopologicalSpace α] (hdisc : t = ⊥) {β : Type*}
   have : DiscreteTopology α := ⟨hdisc⟩
   exact continuous_of_discreteTopology
 
--- Negative control kept as a comment (it does NOT elaborate — arbitrary `t`):
---   example {α : Type*} [t : TopologicalSpace α] : DiscreteTopology α := ⟨rfl⟩
+-- ❌ Negative control (executable): `⟨rfl⟩` does not elaborate for an arbitrary `t`.
+/--
+error: Application type mismatch: The argument
+  rfl
+has type
+  ?m.5 = ?m.5
+but is expected to have type
+  t = ⊥
+in the application
+  { eq_bot := rfl }
+-/
+#guard_msgs in
+example {α : Type*} [t : TopologicalSpace α] : DiscreteTopology α := ⟨rfl⟩
+
+-- measure-theory.md § σ-Algebra Relations (Ready-to-Paste), with DISTINCT
+-- Ω β γ and NAMED ambient structures. `MeasurableSpace.comap Z m` pulls the
+-- CODOMAIN structure `m : MeasurableSpace β` back along `Z : Ω → β`; the joint
+-- σ-algebra uses the product structure on the codomain of the pair.
+example {Ω β γ : Type*} [mΩ : MeasurableSpace Ω] [mβ : MeasurableSpace β]
+    [mγ : MeasurableSpace γ] (Z : Ω → β) (W : Ω → γ) (hZ : Measurable Z)
+    (hW : Measurable W) (μ : Measure Ω) (f : Ω → ℝ) : True := by
+  let mW : MeasurableSpace Ω := MeasurableSpace.comap W mγ
+  let mZW : MeasurableSpace Ω := MeasurableSpace.comap (fun ω ↦ (Z ω, W ω)) (mβ.prod mγ)
+  -- σ(W) ≤ ambient
+  have hmW_le : mW ≤ mΩ := hW.comap_le
+  -- σ(Z,W) ≤ ambient
+  have hmZW_le : mZW ≤ mΩ := (hZ.prodMk hW).comap_le
+  -- σ(W) ≤ σ(Z,W): W = Prod.snd ∘ (Z,W)
+  have hmW_le_mZW : mW ≤ mZW :=
+    MeasurableSpace.comap_le_comap_of_eq_comp Prod.snd measurable_snd rfl
+  -- Measurability transport. The ambient fact names `mΩ` explicitly: after the
+  -- two `let`s, a bare `StronglyMeasurable` resolves to the NEWEST class-typed
+  -- local (`mZW`), and `hsm_ce.mono hmW_le` then fails with "expected mW ≤ mZW"
+  -- — the drift trap, live.
+  have hsm_ce : StronglyMeasurable[mW] (μ[f|mW]) := stronglyMeasurable_condExp
+  have hsm_ceAmb : StronglyMeasurable[mΩ] (μ[f|mW]) := hsm_ce.mono hmW_le
+  trivial
+
+-- The pre-review proof of σ(W) ≤ σ(Z,W) was
+-- `(measurable_snd.comp (hZ.prod_mk hW)).comap_le`; besides the stale name,
+-- it proves `comap W mγ ≤ mΩ` (a bound against the AMBIENT space), not `mW ≤ mZW`.
+example {Ω β γ : Type*} [mΩ : MeasurableSpace Ω] [mβ : MeasurableSpace β]
+    [mγ : MeasurableSpace γ] (Z : Ω → β) (W : Ω → γ) (hZ : Measurable Z)
+    (hW : Measurable W) : MeasurableSpace.comap W mγ ≤ mΩ :=
+  (measurable_snd.comp (hZ.prodMk hW)).comap_le
+
+-- ❌ Negative control (executable): comap with the DOMAIN structure is a type error.
+/--
+error: Application type mismatch: The argument
+  mΩ
+has type
+  MeasurableSpace.{u_1} Ω
+of sort `Type u_1` but is expected to have type
+  MeasurableSpace.{u_2} β
+of sort `Type u_2` in the application
+  MeasurableSpace.comap Z mΩ
+-/
+#guard_msgs in
+example {Ω β : Type*} [mΩ : MeasurableSpace Ω] [mβ : MeasurableSpace β] (Z : Ω → β) : True := by
+  let _bad : MeasurableSpace Ω := MeasurableSpace.comap Z mΩ
+  trivial
+
+-- ❌ Negative control (executable): `SigmaFinite μ` alone does NOT give
+-- `SigmaFinite (μ.trim hm)` by synthesis — the summaries say `[IsFiniteMeasure μ]`
+-- for a reason (`sigmaFinite_trim_bot_iff` shows the general statement fails).
+/--
+error: failed to synthesize instance of type class
+  SigmaFinite (μ.trim hm)
+
+Hint: Type class instance resolution failures can be inspected with the `set_option trace.Meta.synthInstance true` command.
+-/
+#guard_msgs in
+example {Ω : Type*} {m₀ : MeasurableSpace Ω} {μ : Measure Ω} [SigmaFinite μ]
+    {m : MeasurableSpace Ω} (hm : m ≤ m₀) : True := by
+  have : SigmaFinite (μ.trim hm) := inferInstance
+  trivial

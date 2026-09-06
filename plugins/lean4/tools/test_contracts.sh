@@ -2145,10 +2145,15 @@ done
 # Supplied-instance recipes must state their prerequisites: `borel β` needs a
 # topology (and Borel must be the intended σ-algebra); the DiscreteTopology
 # repair needs evidence that the topology is ⊥ (`⟨rfl⟩` proves it only then).
-if grep -rn 'borel [A-Za-zαβ]' "$PLUGIN_ROOT/skills" "$PLUGIN_ROOT/commands" --include='*.md' | grep -qviE 'TopologicalSpace|topology'; then
-    fail "Check 41: a borel recipe does not state its topology prerequisite: $(grep -rn 'borel [A-Za-zαβ]' "$PLUGIN_ROOT/skills" "$PLUGIN_ROOT/commands" --include='*.md' | grep -viE 'TopologicalSpace|topology' | head -1 | cut -c1-90)"
-    check41_ok=0
-fi
+# The prerequisite may sit on the recipe line itself or on the line just
+# before / after it (a wrapped bullet), not only on the same line.
+while IFS=: read -r _c41_bf _c41_bl _; do
+    [[ -n "$_c41_bf" ]] || continue
+    if ! sed -n "$(( _c41_bl > 1 ? _c41_bl - 1 : 1 )),$(( _c41_bl + 1 ))p" "$_c41_bf" | grep -qiE 'TopologicalSpace|topology'; then
+        fail "Check 41: a borel recipe does not state its topology prerequisite (same or adjacent line): ${_c41_bf#"$PLUGIN_ROOT"/}:$_c41_bl"
+        check41_ok=0
+    fi
+done < <(grep -rn 'borel [A-Za-zαβ]' "$PLUGIN_ROOT/skills" "$PLUGIN_ROOT/commands" --include='*.md')
 _c41_aw="$PLUGIN_ROOT/skills/lean4/references/agent-workflows.md"
 if grep -qF 'DiscreteTopology α := ⟨rfl⟩' "$_c41_aw"; then
     fail "Check 41: agent-workflows.md proves DiscreteTopology with ⟨rfl⟩ (only valid when the topology is literally ⊥); cite the evidence"
@@ -2163,8 +2168,56 @@ if grep -qF 'For data, use plain `let`' "$PLUGIN_ROOT/skills/lean4/references/in
     fail "Check 41: instance-pollution.md still claims plain let avoids registering a class-typed local as an instance"
     check41_ok=0
 fi
+# Round 4 (#200): `MeasurableSpace.comap f m` takes the CODOMAIN structure, so
+# `comap Z m0` with `m0 : MeasurableSpace Ω` (the domain) is a type error; the
+# σ-algebra-relations block is the compile-checked form (named ambient
+# structures, product codomain for the joint σ-algebra, `prodMk`,
+# `comap_le_comap_of_eq_comp`, and the transport line naming `[mΩ]`).
+_c41_ip="$PLUGIN_ROOT/skills/lean4/references/instance-pollution.md"
+for _c41_f in "$_c41_mt" "$_c41_ip"; do
+    if grep -qE 'MeasurableSpace\.comap [^ ]+ m0\b' "$_c41_f"; then
+        fail "Check 41: ${_c41_f#"$PLUGIN_ROOT"/} comaps the DOMAIN structure (comap Z m0); comap takes the codomain structure (mβ / mβ.prod mγ)"
+        check41_ok=0
+    fi
+    if grep -qE '\.prod_mk\b|drifts from ambient|NEVER use `set`|‹MeasurableSpace Ω› := hW' "$_c41_f"; then
+        fail "Check 41: ${_c41_f#"$PLUGIN_ROOT"/} regained a round-4 rejected form (prod_mk / 'drifts from ambient' / categorical NEVER-use-set / ‹MeasurableSpace Ω› bound)"
+        check41_ok=0
+    fi
+done
+for _c41_s in 'MeasurableSpace.comap W mγ' '(mβ.prod mγ)' \
+              'MeasurableSpace.comap_le_comap_of_eq_comp Prod.snd measurable_snd rfl' \
+              'StronglyMeasurable[mΩ] (μ[f|mW])' 'sigmaFinite_trim_bot_iff' \
+              'unresolved metavariables'; do
+    if ! grep -qF -- "$_c41_s" "$_c41_mt"; then
+        fail "Check 41: measure-theory.md must carry the round-4 compile-checked form / prerequisite '$_c41_s'"
+        check41_ok=0
+    fi
+done
+if ! grep -qF 'MeasurableSpace.comap Z mβ' "$_c41_ip"; then
+    fail "Check 41: instance-pollution.md must define the sub-σ-algebra as comap of the codomain structure (comap Z mβ)"
+    check41_ok=0
+fi
+_c41_ce="$PLUGIN_ROOT/skills/lean4/references/compilation-errors.md"
+if grep -qF 'have := ⟨' "$_c41_ce"; then
+    fail "Check 41: compilation-errors.md shows an untyped 'have := ⟨proof⟩' (the instance type must be stated: have : C := ⟨proof⟩)"
+    check41_ok=0
+fi
+if ! grep -F 'typeclass instance problem is stuck' "$_c41_ce" | grep -qi 'metavariable'; then
+    fail "Check 41: compilation-errors.md must explain 'typeclass instance problem is stuck' as unresolved metavariables in the class arguments (not a missing instance)"
+    check41_ok=0
+fi
+# The core-Lean evidence for the have/let rule runs in CI with the pinned
+# toolchain; the fixture and its workflow step must both exist.
+if [[ ! -f "$PLUGIN_ROOT/tests/fixtures/reference_snippets/core_instance_snippets.lean" ]]; then
+    fail "Check 41: tests/fixtures/reference_snippets/core_instance_snippets.lean (core-Lean have/let evidence) is missing"
+    check41_ok=0
+fi
+if ! grep -qF 'reference_snippets/core_instance_snippets.lean' "$PLUGIN_ROOT/../../.github/workflows/lean-integration.yml"; then
+    fail "Check 41: lean-integration.yml no longer runs core_instance_snippets.lean"
+    check41_ok=0
+fi
 if [[ "$check41_ok" -eq 1 ]]; then
-    ok "Check 41: local-instance guidance pinned (#188/#162: have/let register instances, haveI/letI = inlining only + linter; no haveI/letI example lines; stale trim idioms gone; synthesis-first rule)"
+    ok "Check 41: local-instance guidance pinned (#188/#162: have/let register instances, haveI/letI = inlining only + linter; no haveI/letI example lines; stale trim idioms gone; synthesis-first rule; comap takes the codomain structure; core-Lean fixture in CI)"
 fi
 
 if [[ "$check39_ok" -eq 1 ]]; then

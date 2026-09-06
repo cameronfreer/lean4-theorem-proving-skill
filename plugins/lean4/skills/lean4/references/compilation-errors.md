@@ -7,8 +7,9 @@ This reference provides detailed explanations and fixes for the most common comp
 | Error | Cause | Fix |
 |-------|-------|-----|
 | **"failed to synthesize instance"** | Missing type class | Add `have : IsProbabilityMeasure μ := ⟨proof⟩` (plain `have` registers the instance; `haveI` only inlines) |
+| **"typeclass instance problem is stuck"** | The class's arguments still hold unresolved metavariables (`IsFiniteMeasure ?μ`), so search cannot start; NOT a missing instance | Annotate the expected type or pass the implicits (`(μ := μ) (m := m)`) |
 | **"maximum recursion depth has been reached"** | Deep elaboration/`whnf` recursion (NOT instance search) | `set_option maxRecDepth 2000 in`; restructure the term |
-| **"(deterministic) timeout at 'typeclass'"** | Instance search too deep or looping | Supply the instance with evidence (`have := ⟨proof⟩`) or `set_option synthInstance.maxHeartbeats 40000 in`; check for instance loops |
+| **"(deterministic) timeout at 'typeclass'"** | Instance search too deep or looping | Supply the instance with evidence (`have : C := ⟨proof⟩`) or `set_option synthInstance.maxHeartbeats 40000 in`; check for instance loops |
 | **WHNF/isDefEq timeout** (500k+ heartbeats) | Complex function in polymorphic goal | **[performance-optimization.md](performance-optimization.md)** - use `@[irreducible]` wrapper |
 | **"type mismatch"** (has type ℕ but expected ℝ) | Wrong type | Use coercion: `(x : ℝ)` or `↑x` |
 | **"expected Filter got Measure"** | Dot notation namespace confusion | Use standalone: `EventuallyEq.lemma h` not `h.EventuallyEq.lemma` |

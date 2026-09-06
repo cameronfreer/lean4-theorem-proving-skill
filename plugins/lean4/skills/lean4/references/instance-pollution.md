@@ -2,9 +2,9 @@
 
 ## Quick Fix (TL;DR)
 
-1. **Pin ambient first:** `let m0 : MeasurableSpace Ω := ‹MeasurableSpace Ω›`
+1. **Name the ambient instance in the declaration:** `[m0 : MeasurableSpace Ω]` (recovery when the signature is not yours: `let m0 : MeasurableSpace Ω := ‹MeasurableSpace Ω›`)
 2. **Use @ for ambient facts:** `@Measurable Ω β m0 _ Z`
-3. **Then define sub-σ-algebras:** `let mSub := MeasurableSpace.comap Z m0`
+3. **Then define sub-σ-algebras:** `let mSub := MeasurableSpace.comap Z mβ` — `comap` pulls the **codomain** structure (`mβ : MeasurableSpace β` for `Z : Ω → β`) back along `Z`; the ambient `m0 : MeasurableSpace Ω` is the wrong type there
 4. **Introduce class-typed locals only after the ambient facts are pinned** - `set`/`let` of a `MeasurableSpace Ω` is fine once `m0` is named and ambient facts use `@`; the problem is ordering, not the keyword
 5. **Name the ambient instance** - a value elaborated earlier never changes; what changes is which instance LATER elaboration picks once a newer class-typed local exists
 
@@ -112,11 +112,12 @@ theorem test (Ω β : Type*) [MeasurableSpace Ω] [MeasurableSpace β]
 **When to use**: Default approach for most cases.
 
 ```lean
-theorem test (Ω β : Type*) [MeasurableSpace Ω] [MeasurableSpace β]
+theorem test (Ω β : Type*) [m0 : MeasurableSpace Ω] [mβ : MeasurableSpace β]
     (Z : Ω → β) (hZ : Measurable Z) (B : Set β) (hB : MeasurableSet B) : ... := by
 
-  -- ✅ STEP 0: PIN the ambient instance with a name
-  let m0 : MeasurableSpace Ω := ‹MeasurableSpace Ω›
+  -- ✅ STEP 0: the ambient instance has a NAME (`m0`) from the binder list.
+  -- Recovery only when the signature is not yours to change:
+  --   let m0 : MeasurableSpace Ω := ‹MeasurableSpace Ω›
 
   -- ✅ STEP 1: Do ALL ambient work using m0 explicitly with @
   have hZ_m0 : @Measurable Ω β m0 _ Z := by simpa [m0] using hZ
@@ -124,8 +125,9 @@ theorem test (Ω β : Type*) [MeasurableSpace Ω] [MeasurableSpace β]
   have hCpre : @MeasurableSet Ω m0 (W ⁻¹' C) := hC.preimage hW_m0
   -- ... all other ambient facts
 
-  -- ✅ STEP 2: NOW define local instances (safe!)
-  let mSub : MeasurableSpace Ω := MeasurableSpace.comap Z m0
+  -- ✅ STEP 2: NOW define local instances (safe!). `comap Z m` takes the
+  -- CODOMAIN structure `m : MeasurableSpace β`, not the ambient m0.
+  let mSub : MeasurableSpace Ω := MeasurableSpace.comap Z mβ
 
   -- ✅ STEP 3: Work with mSub
   have : @MeasurableSet Ω mSub s := ...
@@ -420,7 +422,7 @@ apply foo (m := mW) (hm := hmW)  -- ✓ Works
 
 - **`let`/`set` always create local constants that pollute instance inference** for ANY typeclass
 - **`abbrev` only works at top-level, not in proofs**
-- **Best practice**: Pin ambient instance (`let m0 := ‹...›`) + use `@` notation for ALL ambient facts
+- **Best practice**: name the ambient instance in the declaration (`[m0 : MeasurableSpace Ω]`; `let m0 := ‹...›` only as recovery) + use `@` notation for ALL ambient facts; `MeasurableSpace.comap Z mβ` takes the codomain structure
 - **`@` notation is NOT optional**: Even if you do ambient work "first," outer scope pollution requires explicit `@`
 - **`letI`/`haveI` vs `let`/`have`**: all four register a class-typed local as an instance; the `I` variants only inline the value (irrelevant in proofs — Mathlib's linter flags them there). Pollution comes from the extra class-typed local, not the keyword
 - **Lemma signatures**: Avoid `(by infer_instance)` in signatures when callers construct instances differently; use explicit parameters
