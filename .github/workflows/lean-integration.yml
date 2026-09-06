@@ -71,5 +71,9 @@ jobs:
         with:
           name: lean-file-gate-failures
           path: ${{ runner.temp }}/lean_file_gate_failures
+          # v4 excludes dotfiles/dirs by default; the exported project's
+          # `.lake/` (its .olean artifact state) is the evidence this upload
+          # exists to keep. Path stays restricted to the failure directory.
+          include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 14
