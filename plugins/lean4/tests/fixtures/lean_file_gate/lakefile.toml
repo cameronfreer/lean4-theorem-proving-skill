@@ -1,0 +1,14 @@
+# Fixture for tests/integration/test_lean_file_gate.py (#166 / PR #195).
+# Two libraries: `Gate` (ordinary layout) and `Custom` (custom srcDir), so the
+# dependency-aware file gate is exercised on both layouts plus a scratch file
+# outside every lean_lib. No mathlib; every proof is `rfl` or `decide`.
+name = "gate"
+version = "0.1.0"
+defaultTargets = ["Gate"]
+
+[[lean_lib]]
+name = "Gate"
+
+[[lean_lib]]
+name = "Custom"
+srcDir = "src"
