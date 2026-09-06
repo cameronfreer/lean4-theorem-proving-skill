@@ -294,6 +294,81 @@ def _assert_expected_identity(schema: object) -> None:
         )
 
 
+def _assert_keyword_value_types(node: object, path: str = "$") -> None:
+    """Reject schema *machinery* whose values are ill-typed (issue #189).
+
+    The identity check and the instance validator assume each keyword's value
+    has the shape JSON Schema gives it (``properties``/``$defs`` are objects,
+    ``allOf`` is a list, ``required`` is a list of strings, ...). A corrupted
+    installation such as ``"properties": []`` or ``"allOf": null`` would
+    otherwise surface as an AttributeError/TypeError traceback instead of the
+    documented exit 4. Runs before the identity check, recursively.
+    """
+    if not isinstance(node, dict):
+        raise SchemaUnavailableError(
+            f"installed review schema node at {path} is not a JSON object"
+        )
+
+    def bad(key: str, expected: str) -> SchemaUnavailableError:
+        return SchemaUnavailableError(
+            f"installed review schema keyword {key!r} at {path} is not {expected}"
+        )
+
+    for key in ("properties", "$defs"):
+        if key in node and not isinstance(node[key], dict):
+            raise bad(key, "an object")
+    if "allOf" in node and not isinstance(node["allOf"], list):
+        raise bad("allOf", "a list")
+    for key in ("items", "if", "then", "else"):
+        if key in node and not isinstance(node[key], dict):
+            raise bad(key, "an object")
+    if "additionalProperties" in node and not isinstance(
+        node["additionalProperties"], (bool, dict)
+    ):
+        raise bad("additionalProperties", "a boolean or an object")
+    if "enum" in node and not isinstance(node["enum"], list):
+        raise bad("enum", "a list")
+    if "required" in node and not (
+        isinstance(node["required"], list)
+        and all(isinstance(r, str) for r in node["required"])
+    ):
+        raise bad("required", "a list of strings")
+    if "type" in node:
+        typ = node["type"]
+        types = typ if isinstance(typ, list) else [typ]
+        if not isinstance(typ, (str, list)) or not all(
+            isinstance(t, str) and t in _JSON_TYPES for t in types
+        ):
+            raise bad("type", "a JSON type name or a list of them")
+    if "$ref" in node and not (
+        isinstance(node["$ref"], str) and node["$ref"].startswith("#/$defs/")
+    ):
+        raise bad("$ref", "a '#/$defs/...' string")
+    if "minimum" in node and (
+        not isinstance(node["minimum"], (int, float))
+        or isinstance(node["minimum"], bool)
+    ):
+        raise bad("minimum", "a number")
+
+    for key in ("items", "if", "then", "else"):
+        if key in node:
+            _assert_keyword_value_types(node[key], f"{path}.{key}")
+    if isinstance(node.get("additionalProperties"), dict):
+        _assert_keyword_value_types(
+            node["additionalProperties"], f"{path}.additionalProperties"
+        )
+    for i, sub in enumerate(node.get("allOf", [])):
+        _assert_keyword_value_types(sub, f"{path}.allOf[{i}]")
+    for map_key in ("properties", "$defs"):
+        for name, sub in node.get(map_key, {}).items():
+            _assert_keyword_value_types(sub, f"{path}.{map_key}.{name}")
+
+
+_JSON_TYPES = frozenset(
+    {"null", "boolean", "integer", "number", "string", "array", "object"}
+)
+
+
 def _assert_supported_keywords(node: object, path: str = "$") -> None:
     """Reject any schema keyword the narrow validator would silently ignore."""
     if not isinstance(node, dict):
@@ -320,8 +395,12 @@ def load_output_schema(path: str | None = None) -> dict[str, Any]:
     """Load, parse, and identity-check the shipped output schema.
 
     Raises SchemaUnavailableError (→ exit 4) on any unusable installed contract:
-    unreadable/malformed JSON, wrong identity/root shape, or a keyword the
-    runtime validator would silently ignore.
+    unreadable/malformed JSON, ill-typed schema machinery (#189), wrong
+    identity/root shape, or a keyword the runtime validator would silently
+    ignore. Residual attribute, type, key, or value errors raised while
+    inspecting the parsed schema are also mapped to SchemaUnavailableError,
+    so those corrupted-contract shapes surface as exit 4 rather than a
+    traceback.
     """
     resolved = path or _default_schema_path()
     try:
@@ -331,8 +410,17 @@ def load_output_schema(path: str | None = None) -> dict[str, Any]:
         raise SchemaUnavailableError(
             f"cannot load shipped review schema at {resolved}: {exc}"
         ) from exc
-    _assert_expected_identity(schema)
-    _assert_supported_keywords(schema)
+    try:
+        _assert_keyword_value_types(schema)
+        _assert_expected_identity(schema)
+        _assert_supported_keywords(schema)
+    except SchemaUnavailableError:
+        raise
+    except (AttributeError, TypeError, KeyError, ValueError) as exc:
+        raise SchemaUnavailableError(
+            f"installed review schema at {resolved} is unusable: "
+            f"{type(exc).__name__}: {exc}"
+        ) from exc
     return schema
 
 

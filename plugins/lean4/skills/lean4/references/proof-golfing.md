@@ -195,7 +195,7 @@ When `--search` is enabled, the golfer performs a bounded LSP search pass before
 
 **Budgets:** `quick` = 1 search, ≤2 candidates; `full` = 2 searches, ≤3 candidates. Max 3 search calls total, ≤60s.
 
-**Handoff:** Golf is local tactic cleanup of one proof. If a replacement needs a **statement change** → stop and report it (statement changes need explicit approval; golf never applies them). If it needs a **multi-file or strategy-level refactor** — helper extraction, moving declarations between files, a different proof approach — → hand off to `/lean4:refactor`. Hand off to axiom-eliminator **only** for axiom/assumption hygiene (custom axioms, `sorryAx`, non-whitelisted dependencies). Escalation chain: golf → `/lean4:refactor` → axiom-eliminator, each for its own kind of work.
+**Handoff:** Golf is local tactic cleanup of one proof. If a replacement needs a **statement change** → stop and report it (statement changes need explicit approval; golf never applies them). If it needs a **multi-file or strategy-level refactor** — helper extraction, moving declarations between files, a different proof approach — → hand off to `/lean4:refactor`. Hand off to axiom-eliminator **only** for axiom/assumption hygiene (custom axioms, `sorryAx`, non-whitelisted dependencies). Escalation is selected by the work required, not by a fixed order: axiom hygiene goes straight to axiom-eliminator without passing through refactor.
 
 ## Bulk Rewrite Rules
 

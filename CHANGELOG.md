@@ -8,6 +8,14 @@ Routing correction for `/lean4:golf`'s escalation (#55). Documentation and contr
 
 - **Golf no longer hands "statement changes or multi-file refactor" to the axiom-eliminator agent.** That agent is axiom/assumption hygiene only, but three golf-side handoff lines (`golf.md`, `agents/proof-golfer.md`, `references/proof-golfing.md` ×2) used it as a generic "bigger surgery" target. The routing is now: a needed **statement change** is reported, never applied (golf and `/lean4:refactor` both keep statements fixed; the agent reports `next_action = redraft`); a **multi-file or strategy-level refactor** — helper extraction, moving declarations between files, a different proof approach — hands off to `/lean4:refactor`; axiom-eliminator is used **only** for axiom/assumption hygiene. `refactor.md` now states it is golf's escalation target. Check 40 pins the routing at every golf-side site and rejects the old formulation.
 
+## v4.8.4 (September 2026)
+
+Hardening for the review-output validator's schema loader (#189, the post-#187 follow-up). Trusted-installation edge case; no behavior change for a valid schema.
+
+### Fixed
+
+- **`lean4-skills-validate-review-output` exits 4 cleanly on ill-typed schema machinery instead of tracebacking.** A schema with the correct identity but a wrong-typed keyword *value* — `"properties": []`, `"allOf": null`, `"items": 3`, `"required": "version"`, … — previously escaped the identity/keyword guards as an `AttributeError`/`TypeError` (exit 1 with a traceback). (`"$defs": "x"` already exited 4 via the identity check; it now reports the precise reason.) `load_output_schema` now runs a recursive keyword-value type check (`properties`/`$defs` objects; `allOf` list; `items`/`if`/`then`/`else` objects; `additionalProperties` bool-or-object; `enum` list; `required` list of strings; `type` a JSON type name or list; `$ref` a `#/$defs/…` string; `minimum` a number) before the identity check, and any residual `AttributeError`/`TypeError`/`KeyError`/`ValueError` raised while inspecting the parsed schema is mapped to `SchemaUnavailableError` (exit 4). Tests: unit cases over nine root and nested mutations, wrapper-level fixtures for `properties: []`, `allOf: null`, and a nested `items: 3` asserting exit 4 with no traceback, and a check that the shipped schema still loads.
+
 ## v4.8.3 (September 2026)
 
 Verification-soundness correction for the per-file compile gate (#166). Documentation and contract check only; no runtime code.

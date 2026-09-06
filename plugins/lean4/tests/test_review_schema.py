@@ -704,6 +704,47 @@ class CrossFieldSemantics(unittest.TestCase):
         with self.assertRaises(review_validate.SchemaUnavailableError):
             review_validate.load_output_schema(path="/nonexistent/review-schema.json")
 
+    def test_load_output_schema_ill_typed_machinery_raises_cleanly(self) -> None:
+        # #189: a schema with the right identity but ill-typed keyword VALUES
+        # must raise SchemaUnavailableError (→ exit 4), never AttributeError /
+        # TypeError. Each case mutates one keyword of the shipped schema.
+        cases: list[tuple[str, dict[str, Any]]] = [
+            ("properties: []", {"properties": []}),
+            ("allOf: null", {"allOf": None}),
+            ("$defs: 'x'", {"$defs": "x"}),
+            ("required: 'version'", {"required": "version"}),
+            ("type: 5", {"type": 5}),
+            ("enum: 'x'", {"enum": "x"}),
+        ]
+        nested: list[tuple[str, str, object]] = [
+            ("$defs.suggestion.items: 3", "suggestion", {"items": 3}),
+            ("$defs.summary.properties: null", "summary", {"properties": None}),
+            ("$defs.severity.enum: 'error'", "severity", {"enum": "error"}),
+        ]
+        for label, patch in cases:
+            bad = _load(_OUT)
+            bad.update(patch)
+            with self.subTest(label), tempfile.TemporaryDirectory() as d:
+                p = os.path.join(d, "lean4-review-schema.json")
+                with open(p, "w", encoding="utf-8") as f:
+                    json.dump(bad, f)
+                with self.assertRaises(review_validate.SchemaUnavailableError):
+                    review_validate.load_output_schema(path=p)
+        for label, defn, patch in nested:
+            bad = _load(_OUT)
+            bad["$defs"][defn] = {**bad["$defs"][defn], **patch}
+            with self.subTest(label), tempfile.TemporaryDirectory() as d:
+                p = os.path.join(d, "lean4-review-schema.json")
+                with open(p, "w", encoding="utf-8") as f:
+                    json.dump(bad, f)
+                with self.assertRaises(review_validate.SchemaUnavailableError):
+                    review_validate.load_output_schema(path=p)
+
+    def test_load_output_schema_shipped_still_loads(self) -> None:
+        # The type check must not reject the real contract.
+        schema = review_validate.load_output_schema(path=_OUT)
+        self.assertEqual(schema["title"], "lean4-review-output/v2")
+
 
 class OutputValidatorWrapperEndToEnd(unittest.TestCase):
     """End-to-end wrapper fixtures: exact exit codes for empty and NON-EMPTY
@@ -854,6 +895,33 @@ class OutputValidatorWrapperEndToEnd(unittest.TestCase):
         bad["maxProperties"] = 4
         proc = self._run_with_schema(json.dumps(bad))
         self.assertEqual(proc.returncode, 4, proc.stderr)
+
+    def test_schema_properties_array_exits_4_no_traceback(self) -> None:
+        # #189: correct identity, ill-typed machinery — previously an
+        # AttributeError traceback (exit 1). Must be the documented exit 4.
+        bad = _load(_OUT)
+        bad["properties"] = []
+        proc = self._run_with_schema(json.dumps(bad))
+        self.assertEqual(proc.returncode, 4, proc.stderr)
+        self.assertNotIn("Traceback", proc.stderr)
+        self.assertIn("properties", proc.stderr)
+
+    def test_schema_allof_null_exits_4_no_traceback(self) -> None:
+        # #189: previously a TypeError traceback (exit 1).
+        bad = _load(_OUT)
+        bad["allOf"] = None
+        proc = self._run_with_schema(json.dumps(bad))
+        self.assertEqual(proc.returncode, 4, proc.stderr)
+        self.assertNotIn("Traceback", proc.stderr)
+        self.assertIn("allOf", proc.stderr)
+
+    def test_schema_nested_items_int_exits_4_no_traceback(self) -> None:
+        # #189: ill-typed machinery below the root must be caught too.
+        bad = _load(_OUT)
+        bad["$defs"]["suggestion"]["items"] = 3
+        proc = self._run_with_schema(json.dumps(bad))
+        self.assertEqual(proc.returncode, 4, proc.stderr)
+        self.assertNotIn("Traceback", proc.stderr)
 
     def test_copied_valid_shipped_schema_exits_0(self) -> None:
         with open(_OUT, encoding="utf-8") as f:
