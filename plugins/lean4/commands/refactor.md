@@ -10,6 +10,8 @@ Strategy-level proof simplification: find better proof approaches, leverage math
 
 **Mutating command:** Edits files with user approval. Does not change theorem statements, introduce axioms, or create commits.
 
+**Escalation target for `/lean4:golf`.** Golf performs local, statement-preserving proof cleanup, potentially across many proofs; when a golf replacement needs a multi-file or strategy-level change — extracting a helper, moving declarations between files, switching the proof approach — golf hands off here. Axiom/assumption hygiene goes to the axiom-eliminator agent instead; a needed statement change is reported to you rather than applied by either.
+
 ## Usage
 
 ```
@@ -69,7 +71,7 @@ Run /lean4:prove first, then retry /lean4:refactor.
    ```
 4. **Approval** — Ask before each batch (`--dry-run` stops here). A batch groups opportunities within a single proof or closely related proofs. Prompt: `Apply batch N (M changes)? [yes / skip / stop]` — yes applies, skip moves to next batch, stop ends the session.
 5. **Apply** — Edit files, verify with `lean_diagnostic_messages` after each batch; revert batch on any new diagnostic or sorry increase
-6. **Verify** — `lake env lean <file>` file gate (run from project root); `lake build` project gate if multi-file. If final gate fails, revert all batches applied in this session.
+6. **Verify** — `lake lean <file>` file gate (run from project root; it builds the file's imports first, so a cross-file batch cannot false-fail against a stale `.olean` — see [File Gate Scope](../skills/lean4/references/cycle-engine.md#file-gate-scope)); `lake build` project gate if multi-file. If final gate fails, revert all batches applied in this session.
 7. **Report** — Summarize changes applied, helpers extracted, line count delta
 
 See [proof-simplification](../skills/lean4/references/proof-simplification.md) for the strategy guide (congr/EqOn patterns, generalization checklist, file-level audit).

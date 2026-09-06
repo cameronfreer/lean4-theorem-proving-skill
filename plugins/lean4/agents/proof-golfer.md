@@ -45,7 +45,7 @@ Consume the `run-contract/v1` [dispatch record](../skills/lean4/references/hando
    - `quick`: 1 search, ≤2 candidates; `full`: 2 searches, ≤3 candidates
    - Test with `lean_multi_attempt`; accept the best passing replacement by scoring order (per golf.md: directness → inference burden → perf → length)
    - Budget: ≤3 search calls, max 3 candidates; uses remaining shared time budget (`quick` 30s, `full` 60s total across steps 3–4)
-   - If replacement needs statement changes or multi-file refactor → stop, hand off to axiom-eliminator
+   - If a replacement would require changing a declaration's statement → reject the candidate and keep the existing proof; report the proposed change for explicit user approval (this is not evidence that the statement is wrong — golf starts from a compiling proof). When stopping to hand that decision back to the parent, use `next_action = stop`, not `redraft`. If it needs a multi-file or strategy-level refactor → return the proposal to the parent for `/lean4:refactor` (through its normal approval flow); do not expand your own file ownership or start cross-file edits. Hand off to axiom-eliminator only for axiom/assumption hygiene
 
 5. **Apply optimizations** (max 3 hunks × 60 lines each):
    - Fail closed on file baselines: whenever a `run-contract/v1` dispatch carries `owned_files`, its `file_baseline` is required before any mutation (absent/malformed record or unavailable checker → dispatch-protocol error, no mutation; standalone work outside a structured dispatch is governed by the direct caller). `lean4-skills-file-baseline check --baseline -` before every mutating tool operation (all intended targets first) — only exit 0 authorizes the mutation; on any nonzero exit, apply nothing, report the structured stale-baseline result, and stop — never re-record and retry. Advance only intentionally changed entries after success (shell-quote each path operand, `--` before positionals) — advance's output replaces the current baseline for subsequent checks; if advance fails, stop (cycle-engine.md § File baselines and drift)
@@ -82,7 +82,7 @@ Lines: X → Y (Z% reduction)
 - Must verify safety before inlining
 - Stop when success rate < 20%
 - May NOT skip safety verification
-- If replacement needs statement changes or multi-file refactor → hand off to axiom-eliminator
+- If a replacement would require a statement change → reject the candidate, keep the existing proof, report the proposed change for explicit approval (`next_action = stop`, never `redraft` — an unsuitable candidate is not evidence the statement is wrong); if it needs a multi-file or strategy-level refactor → return the proposal to the parent for `/lean4:refactor` (no cross-file edits, no ownership expansion); hand off to axiom-eliminator only for axiom/assumption hygiene, never as a generic "bigger surgery" target
 
 **Bulk rewrite constraints (obeys 3-hunk cap):**
 - sed activates automatically when ≥4 whitelisted syntax wrappers found at declaration RHS / term-wrapper positions (`:= by exact t` → `:= t`, `by rfl` → `rfl`); never inside tactic blocks or calc blocks; preview + user confirmation required before applying

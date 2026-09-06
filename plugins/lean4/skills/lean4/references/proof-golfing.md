@@ -145,7 +145,7 @@ When search mode is enabled, replacement candidates follow the same safety rules
 - Only accept if `lean_multi_attempt` passes
 - Only accept if the replacement scores better by the lexicographic order (directness → inference burden → perf → length)
 - Max one new import per replacement
-- If replacement type-mismatches or needs statement changes → skip (hand off to axiom-eliminator)
+- If replacement type-mismatches → skip. If it would only work with a **statement change** → reject the candidate, keep the existing proof, and report the proposed change (golf never changes statements; a statement change needs explicit approval and is not evidence the statement is wrong). If it needs a **multi-file or strategy-level refactor** → hand off to `/lean4:refactor` by returning the proposal to the parent (no cross-file edits by the golfer). Hand off to axiom-eliminator **only** for axiom/assumption hygiene.
 
 ### Phase 2.6: Bulk Rewrite Context Safety
 
@@ -195,7 +195,7 @@ When `--search` is enabled, the golfer performs a bounded LSP search pass before
 
 **Budgets:** `quick` = 1 search, ≤2 candidates; `full` = 2 searches, ≤3 candidates. Max 3 search calls total, ≤60s.
 
-**Handoff:** If replacement needs statement changes or multi-file refactor → hand off to axiom-eliminator.
+**Handoff:** Golf performs local, statement-preserving proof cleanup, potentially across many proofs. If a replacement would require a **statement change** → reject the candidate, keep the existing proof, and report the proposed change for explicit approval (an unsuitable candidate is not evidence that the statement is wrong; golf never applies statement changes). If it needs a **multi-file or strategy-level refactor** — helper extraction, moving declarations between files, a different proof approach — → hand off to `/lean4:refactor`: return the proposal to the parent, which enters refactor through its normal approval flow; the golfer never expands its file ownership or starts cross-file edits. Hand off to axiom-eliminator **only** for axiom/assumption hygiene (custom axioms, `sorryAx`, non-whitelisted dependencies). Escalation is selected by the work required, not by a fixed order: axiom hygiene goes straight to axiom-eliminator without passing through refactor.
 
 ## Bulk Rewrite Rules
 
