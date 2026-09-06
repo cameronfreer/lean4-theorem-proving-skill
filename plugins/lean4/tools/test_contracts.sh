@@ -2005,6 +2005,18 @@ if ! grep -qiF 'check whether synthesis already succeeds' "$_c41_mt"; then
     fail "Check 41: measure-theory.md must tell the reader to check synthesis before adding local instances"
     check41_ok=0
 fi
+# Lean-3-isms / stale Mathlib names found by the reference audit must not return:
+# `apply_instance` (Lean 4: infer_instance), the pre-2024 `condexp` /
+# `set_integral_condexp` spellings (now condExp / setIntegral_condExp), and the
+# nonexistent `condExp_unique`.
+if grep -rqE '\bapply_instance\b' "$PLUGIN_ROOT/skills" "$PLUGIN_ROOT/commands" "$PLUGIN_ROOT/agents" --include='*.md'; then
+    fail "Check 41: apply_instance (Lean 3) is back — Lean 4 is infer_instance"
+    check41_ok=0
+fi
+if grep -rE '[A-Za-z]_condexp\b|\bset_integral_condexp\b|\bcondExp_unique\b' "$PLUGIN_ROOT/skills" --include='*.md' | grep -qv 'there is no `condExp_unique`'; then
+    fail "Check 41: stale Mathlib name (…_condexp / set_integral_condexp / condExp_unique) is back — use …_condExp / setIntegral_condExp / ae_eq_condExp_of_forall_setIntegral_eq"
+    check41_ok=0
+fi
 # instance-pollution must not claim plain let is "just data" for a class type.
 if grep -qF 'For data, use plain `let`' "$PLUGIN_ROOT/skills/lean4/references/instance-pollution.md"; then
     fail "Check 41: instance-pollution.md still claims plain let avoids registering a class-typed local as an instance"

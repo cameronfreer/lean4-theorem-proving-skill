@@ -132,7 +132,7 @@ lemma condExp_eq_of_integral_eq
 
 ```lean
 -- ✅ Correct pattern
-lemma my_condexp_lemma {Ω : Type*} {m₀ : MeasurableSpace Ω}
+lemma my_condExp_lemma {Ω : Type*} {m₀ : MeasurableSpace Ω}
     {μ : Measure Ω} [IsFiniteMeasure μ]
     {m : MeasurableSpace Ω} (hm : m ≤ m₀) : Result := by
   -- `IsFiniteMeasure (μ.trim hm)` is a Mathlib instance; σ-finiteness follows.

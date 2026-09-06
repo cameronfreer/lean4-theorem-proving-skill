@@ -21,7 +21,7 @@ When working with sub-σ-algebras and conditional expectation:
 2. **Correct binder order:** All instance parameters first, THEN plain parameters
 3. **Check whether synthesis already succeeds** before adding local instances: `IsFiniteMeasure (μ.trim hm)` is a Mathlib instance, and `SigmaFinite (μ.trim hm)` follows from it. If you still freeze one, use plain `have` (it registers the instance; `haveI` only inlines, which is irrelevant in a proof)
 4. **Avoid instance pollution:** Pin ambient (`let m0 := ‹...›`), use `@` for ambient facts (see [instance-pollution.md](instance-pollution.md))
-5. **Prefer set-integral projection:** Use `set_integral_condexp` instead of proving `μ[g|m] = g`
+5. **Prefer set-integral projection:** Use `setIntegral_condExp` instead of proving `μ[g|m] = g`
 6. **Rewrite products to indicators:** `f * indicator` → `indicator f` avoids measurability issues
 7. **Follow condExpWith pattern** for conditional expectation (see below)
 8. **Copy-paste σ-algebra relations** from ready-to-use snippets (see Advanced Patterns)
@@ -32,8 +32,8 @@ When working with sub-σ-algebras and conditional expectation:
 
 | Task | Lemma | Notes |
 |------|-------|-------|
-| CE integrability | `integrable_condexp` | Always available |
-| Project CE to set integral | `set_integral_condexp` | Use this, not a.e. equality |
+| CE integrability | `integrable_condExp` | Always available |
+| Project CE to set integral | `setIntegral_condExp` | Use this, not a.e. equality |
 | Trim measure instance | `inferInstance` (via the `isFiniteMeasure_trim` instance + `IsFiniteMeasure.toSigmaFinite`) | Optional freeze: `have : SigmaFinite (μ.trim hm) := inferInstance` |
 | Preimage measurability | `measurableSet_preimage hf hs` | Function syntax |
 | Lift sub-σ-algebra set | `hm _ hs_m` where `hm : m ≤ m₀` | Direct application |
@@ -74,7 +74,7 @@ let mW : MeasurableSpace Ω := MeasurableSpace.comap W m0
 
 3. **❌ Don't prove CE idempotence when you need set-integral equality**
    - Hard: Proving `μ[g|m] = g` a.e.
-   - Easy: `set_integral_condexp` gives `∫_{s} μ[g|m] = ∫_{s} g` for s ∈ m
+   - Easy: `setIntegral_condExp` gives `∫_{s} μ[g|m] = ∫_{s} g` for s ∈ m
 
 4. **❌ Don't force product measurability**
    - Fragile: `AEStronglyMeasurable (fun ω ↦ f ω * g ω)`
@@ -92,7 +92,7 @@ let mW : MeasurableSpace Ω := MeasurableSpace.comap W m0
 The canonical approach for conditional expectation with sub-σ-algebras:
 
 ```lean
-lemma my_condexp_lemma
+lemma my_condExp_lemma
     {Ω : Type*} {m₀ : MeasurableSpace Ω}  -- ✅ Explicit ambient
     {μ : Measure Ω} [IsFiniteMeasure μ]
     {m : MeasurableSpace Ω} (hm : m ≤ m₀)  -- ✅ Explicit relation
@@ -346,7 +346,7 @@ have hCEη : μ[f | MeasurableSpace.comap η mγ] =ᵐ[μ]
 ```lean
 -- For s ∈ m, Integrable g:
 have : ∫ x in s, μ[g|m] x ∂μ = ∫ x in s, g x ∂μ :=
-  set_integral_condexp (μ := μ) (m := m) (hm := hm) (hs := hs) (hf := hg)
+  setIntegral_condExp (μ := μ) (m := m) (hm := hm) (hs := hs) (hf := hg)
 ```
 
 **Wrapper to avoid parameter drift:**
@@ -354,7 +354,7 @@ have : ∫ x in s, μ[g|m] x ∂μ = ∫ x in s, g x ∂μ :=
 lemma setIntegral_condExp_eq (μ : Measure Ω) (m : MeasurableSpace Ω) (hm : m ≤ ‹_›)
     {s : Set Ω} (hs : MeasurableSet s) {g : Ω → ℝ} (hg : Integrable g μ) :
   ∫ x in s, μ[g|m] x ∂μ = ∫ x in s, g x ∂μ := by
-  simpa using set_integral_condexp (μ := μ) (m := m) (hm := hm) (hs := hs) (hf := hg)
+  simpa using setIntegral_condExp (μ := μ) (m := m) (hm := hm) (hs := hs) (hf := hg)
 ```
 
 ---
@@ -370,7 +370,7 @@ have hMulAsInd : (fun ω ↦ μ[f|mW] ω * gB ω) = (Z ⁻¹' B).indicator (μ[f
 
 -- Integrability without product measurability
 have : Integrable (fun ω ↦ μ[f|mW] ω * gB ω) μ := by
-  simpa [hMulAsInd] using (integrable_condexp).indicator (hB.preimage hZ)
+  simpa [hMulAsInd] using (integrable_condExp).indicator (hB.preimage hZ)
 ```
 
 **Restricted integral:** `∫_{S} (Z⁻¹ B).indicator h = ∫_{S ∩ Z⁻¹ B} h`
@@ -404,7 +404,7 @@ have hmZW_le : mZW ≤ ‹MeasurableSpace Ω› := (hZ.prod_mk hW).comap_le
 have hmW_le_mZW : mW ≤ mZW := (measurable_snd.comp (hZ.prod_mk hW)).comap_le
 
 -- Measurability transport
-have hsm_ce : StronglyMeasurable[mW] (μ[f|mW]) := stronglyMeasurable_condexp
+have hsm_ce : StronglyMeasurable[mW] (μ[f|mW]) := stronglyMeasurable_condExp
 have hsm_ceAmb : StronglyMeasurable (μ[f|mW]) := hsm_ce.mono hmW_le
 ```
 
@@ -785,8 +785,8 @@ sorry  -- TODO: Need measurableSet_preimage hf hs
 ## Mathlib Lemma Quick Reference
 
 **Conditional expectation (scalar form):**
-- `integrable_condexp`, `stronglyMeasurable_condexp`, `aestronglyMeasurable_condexp`
-- `set_integral_condexp` - set-integral projection (wrap as `setIntegral_condExp_eq`)
+- `integrable_condExp`, `stronglyMeasurable_condExp`, `aestronglyMeasurable_condExp`
+- `setIntegral_condExp` - set-integral projection (wrap as `setIntegral_condExp_eq`)
 
 **Conditional expectation (kernel form):**
 - `condExp_ae_eq_integral_condExpKernel` - convert scalar to kernel form
@@ -807,7 +807,7 @@ sorry  -- TODO: Need measurableSet_preimage hf hs
 - `Set.indicator_of_mem`, `Set.indicator_of_notMem`, `Set.indicator_indicator`
 
 **Trimmed measures:**
-- `isFiniteMeasure_trim`, `sigmaFinite_trim`
+- `isFiniteMeasure_trim` (instance), `IsFiniteMeasure.toSigmaFinite` (instance) — plain `sigmaFinite_trim` no longer exists; see `sigmaFiniteTrim_mono` / `SigmaFinite.of_trim`
 
 **Measurability lifting:**
 - `MeasurableSet[m] s → MeasurableSet[m₀] s` via `hm _ hs_m` where `hm : m ≤ m₀`

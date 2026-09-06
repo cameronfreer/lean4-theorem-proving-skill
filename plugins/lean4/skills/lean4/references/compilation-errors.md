@@ -103,7 +103,7 @@ lemma my_lemma : Statement := by
 ```lean
 set_option trace.Meta.synthInstance true in
 theorem my_theorem : Goal := by
-  apply_instance
+  infer_instance
 ```
 
 ### 2. Maximum Recursion Depth
@@ -773,7 +773,7 @@ import Phases.Pal
 ```lean
 -- See synthesis trace
 set_option trace.Meta.synthInstance true in
-theorem test : Goal := by apply_instance
+theorem test : Goal := by infer_instance
 
 -- See which instance was chosen
 #check (inferInstance : IsProbabilityMeasure μ)
