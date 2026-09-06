@@ -1986,8 +1986,10 @@ for _c41_f in skills/lean4/SKILL.md skills/lean4/references/compilation-errors.m
               skills/lean4/references/instance-pollution.md skills/lean4/references/measure-theory.md \
               skills/lean4/references/domain-patterns.md skills/lean4/references/compiler-guided-repair.md \
               skills/lean4/references/tactic-patterns.md skills/lean4/references/agent-workflows.md; do
-    if grep -qE '^[+ ]*(haveI|letI)( [A-Za-z_]+)? :' "$PLUGIN_ROOT/$_c41_f"; then
-        fail "Check 41: $_c41_f still shows a haveI/letI example line: $(grep -nE '^[+ ]*(haveI|letI)( [A-Za-z_]+)? :' "$PLUGIN_ROOT/$_c41_f" | head -1 | cut -c1-90)"
+    # Allowance: a deliberate data-definition example (where `letI` inlining
+    # is meaningful) is permitted when the line carries a `-- data:` marker.
+    if grep -E '^[+ ]*(haveI|letI)( [A-Za-z_]+)? :' "$PLUGIN_ROOT/$_c41_f" | grep -qv -- '-- data:'; then
+        fail "Check 41: $_c41_f still shows a haveI/letI example line in a proof context (mark a deliberate data-definition example with '-- data:'): $(grep -E '^[+ ]*(haveI|letI)( [A-Za-z_]+)? :' "$PLUGIN_ROOT/$_c41_f" | grep -v -- '-- data:' | head -1 | cut -c1-90)"
         check41_ok=0
     fi
 done
@@ -2055,6 +2057,22 @@ for _c41_f in commands/review.md skills/lean4/references/command-examples.md \
         check41_ok=0
     fi
 done
+# Supplied-instance recipes must state their prerequisites: `borel β` needs a
+# topology (and Borel must be the intended σ-algebra); the DiscreteTopology
+# repair needs evidence that the topology is ⊥ (`⟨rfl⟩` proves it only then).
+if grep -rn 'borel [A-Za-zαβ]' "$PLUGIN_ROOT/skills" "$PLUGIN_ROOT/commands" --include='*.md' | grep -qviE 'TopologicalSpace|topology'; then
+    fail "Check 41: a borel recipe does not state its topology prerequisite: $(grep -rn 'borel [A-Za-zαβ]' "$PLUGIN_ROOT/skills" "$PLUGIN_ROOT/commands" --include='*.md' | grep -viE 'TopologicalSpace|topology' | head -1 | cut -c1-90)"
+    check41_ok=0
+fi
+_c41_aw="$PLUGIN_ROOT/skills/lean4/references/agent-workflows.md"
+if grep -qF 'DiscreteTopology α := ⟨rfl⟩' "$_c41_aw"; then
+    fail "Check 41: agent-workflows.md proves DiscreteTopology with ⟨rfl⟩ (only valid when the topology is literally ⊥); cite the evidence"
+    check41_ok=0
+fi
+if ! grep -qF 'DiscreteTopology α := ⟨hdisc⟩' "$_c41_aw"; then
+    fail "Check 41: agent-workflows.md DiscreteTopology repair must cite its evidence (hdisc)"
+    check41_ok=0
+fi
 # instance-pollution must not claim plain let is "just data" for a class type.
 if grep -qF 'For data, use plain `let`' "$PLUGIN_ROOT/skills/lean4/references/instance-pollution.md"; then
     fail "Check 41: instance-pollution.md still claims plain let avoids registering a class-typed local as an instance"

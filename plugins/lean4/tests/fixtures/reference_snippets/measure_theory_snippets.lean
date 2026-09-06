@@ -8,6 +8,8 @@
 -- documented snippets, change it here too and re-run.
 import Mathlib.MeasureTheory.Function.ConditionalExpectation.Basic
 import Mathlib.MeasureTheory.Measure.Typeclasses.Probability
+import Mathlib.MeasureTheory.Constructions.BorelSpace.Basic
+import Mathlib.Topology.Order
 import Mathlib.Tactic
 
 open MeasureTheory
@@ -62,3 +64,20 @@ termination_by n => n
 
 -- compilation-errors.md / tactics-reference.md: infer_instance.
 example : Nonempty Nat := by infer_instance
+
+-- Missing-instance recipes (compiler-guided-repair.md, command-examples.md,
+-- review.md): `borel β` is a valid supplied value ONLY given a topology, and
+-- only when the Borel σ-algebra is the intended structure.
+example {β : Type*} [TopologicalSpace β] : True := by
+  have : MeasurableSpace β := borel β
+  trivial
+
+-- agent-workflows.md repair example: `DiscreteTopology α` needs EVIDENCE that
+-- the ambient topology is `⊥`; `⟨rfl⟩` proves it only when it literally is.
+example {α : Type*} [t : TopologicalSpace α] (hdisc : t = ⊥) {β : Type*}
+    [TopologicalSpace β] (f : α → β) : Continuous f := by
+  have : DiscreteTopology α := ⟨hdisc⟩
+  exact continuous_of_discreteTopology
+
+-- Negative control kept as a comment (it does NOT elaborate — arbitrary `t`):
+--   example {α : Type*} [t : TopologicalSpace α] : DiscreteTopology α := ⟨rfl⟩

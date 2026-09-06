@@ -243,7 +243,7 @@ If success → done! If fail → next iteration (max 24 attempts)
 
 **Example:**
 ```diff
-+  have : MeasurableSpace β := borel β   -- an actual value; `inferInstance` would just fail again
++  have : MeasurableSpace β := borel β   -- an actual value: needs `[TopologicalSpace β]`, and Borel must be the intended σ-algebra; `inferInstance` would just fail again
    apply theorem_needing_instance
 ```
 
@@ -463,7 +463,7 @@ theorem foo : MemLp f p μ := by  -- ✓ ASCII name
 
 **Example:**
 ```diff
-+  have : MeasurableSpace α := borel α   -- an actual value; `inferInstance` would just fail again
++  have : MeasurableSpace α := borel α   -- an actual value: needs `[TopologicalSpace α]`, and Borel must be the intended σ-algebra; `inferInstance` would just fail again
    apply theorem_needing_instance
 ```
 
@@ -579,7 +579,7 @@ theorem bar : Property := by
 -- (b) it is genuinely missing: supply a VALUE or PROOF (plain `have`/`let`
 --     registers it). `:= inferInstance` here just re-runs the failed search.
 theorem bar : Property := by
-  have : MeasurableSpace α := borel α
+  have : MeasurableSpace α := borel α   -- requires `[TopologicalSpace α]` and that Borel is the intended σ-algebra; otherwise supply the intended structure or report the missing prerequisite
   apply lemma
 -- (c) it already synthesizes and you only want to freeze it (performance,
 --     stability): `have : MeasurableSpace α := inferInstance` is fine.
