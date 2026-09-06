@@ -1018,14 +1018,14 @@ Claude: No progress on Core.lean:89 after 3 attempts. Running stuck review...
 
 **Top 3 blockers:**
 1. Missing lemma for tendsto_atTop → search Mathlib.Topology.Order
-2. Need MeasurableSpace instance → add `have : MeasurableSpace β := inferInstance` before apply
+2. Need MeasurableSpace instance → supply one (`have : MeasurableSpace β := borel β`, or import the module that declares it) before apply — not `:= inferInstance`, which re-runs the failed search
 3. Goal has implicit coercion issue → try `convert` instead of `exact`
 
 **Recommended:** Search tendsto variants first.
 
 Review complete. Proposed plan:
 1. Search Mathlib.Topology.Order for tendsto_atTop variants
-2. Add `have : MeasurableSpace β := inferInstance` before apply
+2. Add `have : MeasurableSpace β := borel β` (or import the declaring module) before apply
 3. If exact fails, try `convert` with explicit type annotation
 
 Proceed with this plan? [yes / no / skip]

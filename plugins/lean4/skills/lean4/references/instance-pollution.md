@@ -5,8 +5,8 @@
 1. **Pin ambient first:** `let m0 : MeasurableSpace Ω := ‹MeasurableSpace Ω›`
 2. **Use @ for ambient facts:** `@Measurable Ω β m0 _ Z`
 3. **Then define sub-σ-algebras:** `let mSub := MeasurableSpace.comap Z m0`
-4. **Avoid `set`** - use inline comaps or `let` with explicit `m0`
-5. **Watch for inferInstance drift** - freeze ambient with `let`
+4. **Introduce class-typed locals only after the ambient facts are pinned** - `set`/`let` of a `MeasurableSpace Ω` is fine once `m0` is named and ambient facts use `@`; the problem is ordering, not the keyword
+5. **Name the ambient instance** - a value elaborated earlier never changes; what changes is which instance LATER elaboration picks once a newer class-typed local exists
 
 **Details below. Read "The Problem" if hitting mysterious type mismatches.**
 

@@ -2017,6 +2017,44 @@ if grep -rE '[A-Za-z]_condexp\b|\bset_integral_condexp\b|\bcondExp_unique\b' "$P
     fail "Check 41: stale Mathlib name (…_condexp / set_integral_condexp / condExp_unique) is back — use …_condExp / setIntegral_condExp / ae_eq_condExp_of_forall_setIntegral_eq"
     check41_ok=0
 fi
+# Compile-checked corrections from the #200 review (each of these forms was
+# elaborated against Mathlib; see tests/fixtures/reference_snippets/).
+_c41_mt="$PLUGIN_ROOT/skills/lean4/references/measure-theory.md"
+for _c41_s in 'stronglyMeasurable_condExp.aestronglyMeasurable' \
+              'Measure.isProbabilityMeasure_map hf' \
+              '(hm : m ≤ m₀)' \
+              'setIntegral_condExp hm hg hs'; do
+    if ! grep -qF -- "$_c41_s" "$_c41_mt"; then
+        fail "Check 41: measure-theory.md must carry the compile-checked form '$_c41_s'"
+        check41_ok=0
+    fi
+done
+# Negative forms are matched as CODE (a bare identifier use, a binder, an
+# application), so a sentence that explains why a form is wrong does not trip.
+if grep -E 'aestronglyMeasurable_condExp' "$_c41_mt" | grep -qv 'there is no'; then
+    fail "Check 41: measure-theory.md uses the nonexistent aestronglyMeasurable_condExp (use stronglyMeasurable_condExp.aestronglyMeasurable)"
+    check41_ok=0
+fi
+for _c41_bad in 'isProbabilityMeasure_map hf hμ' ': Measure β) : Type)' '(hm : m ≤ ‹_›)'; do
+    if grep -qF -- "$_c41_bad" "$_c41_mt"; then
+        fail "Check 41: measure-theory.md regained a form that does not elaborate: $_c41_bad"
+        check41_ok=0
+    fi
+done
+if grep -E '`swap n`|`rotate`,|`rotate n`|termination_by my_rec n => n' "$PLUGIN_ROOT/skills/lean4/references/lean-phrasebook.md" "$PLUGIN_ROOT/skills/lean4/references/compilation-errors.md" | grep -qvE 'not Lean 4 tactics|is rejected'; then
+    fail "Check 41: obsolete goal-management (swap n / rotate) or pre-4.6 termination_by form is back"
+    check41_ok=0
+fi
+# A genuinely missing instance is never fixed by `:= inferInstance` (it re-runs
+# the failed search); the repair/review recipes must supply evidence instead.
+# Lines that SAY so ("re-runs", "only freezes", "not `:= inferInstance`") pass.
+for _c41_f in commands/review.md skills/lean4/references/command-examples.md \
+              skills/lean4/references/compiler-guided-repair.md skills/lean4/references/agent-workflows.md; do
+    if grep -E '(missing|Missing|Need|need|Add instance|Provide instance)[^.]*:= inferInstance' "$PLUGIN_ROOT/$_c41_f" | grep -qvE 're-runs|only freezes|not `:= inferInstance`|would just fail again'; then
+        fail "Check 41: $_c41_f prescribes ':= inferInstance' as the fix for a MISSING instance (it only freezes one that already synthesizes)"
+        check41_ok=0
+    fi
+done
 # instance-pollution must not claim plain let is "just data" for a class type.
 if grep -qF 'For data, use plain `let`' "$PLUGIN_ROOT/skills/lean4/references/instance-pollution.md"; then
     fail "Check 41: instance-pollution.md still claims plain let avoids registering a class-typed local as an instance"

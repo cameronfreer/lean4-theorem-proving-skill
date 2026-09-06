@@ -7,7 +7,8 @@ This reference provides detailed explanations and fixes for the most common comp
 | Error | Cause | Fix |
 |-------|-------|-----|
 | **"failed to synthesize instance"** | Missing type class | Add `have : IsProbabilityMeasure μ := ⟨proof⟩` (plain `have` registers the instance; `haveI` only inlines) |
-| **"maximum recursion depth"** | Type class loop/complex search | Provide manually: `have := instance` (or `let` when the value must stay visible) or increase: `set_option synthInstance.maxHeartbeats 40000` |
+| **"maximum recursion depth has been reached"** | Deep elaboration/`whnf` recursion (NOT instance search) | `set_option maxRecDepth 2000 in`; restructure the term |
+| **"(deterministic) timeout at 'typeclass'"** | Instance search too deep or looping | Supply the instance with evidence (`have := ⟨proof⟩`) or `set_option synthInstance.maxHeartbeats 40000 in`; check for instance loops |
 | **WHNF/isDefEq timeout** (500k+ heartbeats) | Complex function in polymorphic goal | **[performance-optimization.md](performance-optimization.md)** - use `@[irreducible]` wrapper |
 | **"type mismatch"** (has type ℕ but expected ℝ) | Wrong type | Use coercion: `(x : ℝ)` or `↑x` |
 | **"expected Filter got Measure"** | Dot notation namespace confusion | Use standalone: `EventuallyEq.lemma h` not `h.EventuallyEq.lemma` |
@@ -17,7 +18,7 @@ This reference provides detailed explanations and fixes for the most common comp
 | **"invalid 'import' command"** | Module docstring placed before imports | Move `/-! ... -/` after the `import` block; see [§ 15 below](#15-invalid-import-command-module-docstring-before-imports) |
 | **"unexpected token/identifier"** | Section comment in proof | Replace `/-! -/` with `--` in tactic mode |
 | **"no goals to be solved"** | Tactic already finished | Remove redundant tactics after `simp` |
-| **"equation compiler failed"** | Can't prove termination | Add `termination_by my_rec n => n` clause |
+| **"equation compiler failed"** | Can't prove termination | Add a `termination_by n` clause (the pre-4.6 `termination_by my_rec n => n` form is rejected) |
 | **"synthesized: m, inferred: inst✝"** | Instance pollution (sub-σ-algebras) | ⚡ **READ [instance-pollution.md](instance-pollution.md)** - pin ambient first! |
 | **"binder x doesn't match goal's binder ω"** | Alpha/beta-equivalence issue | Use `set F := <expr> with hF`, apply to `F`, unfold with `simpa [hF]` |
 | **Error at line N** | Actual error before line N | Check 5-10 lines before reported location |
@@ -106,14 +107,14 @@ theorem my_theorem : Goal := by
   infer_instance
 ```
 
-### 2. Maximum Recursion Depth
+### 2. Typeclass Synthesis Timeout (and the separate `maxRecDepth` limit)
 
 **Full error message:**
 ```
 (deterministic) timeout at 'typeclass', maximum number of heartbeats (20000) has been reached
 ```
 
-**What it means:** Type class synthesis is stuck in a loop or the search is too complex.
+**What it means:** Type class synthesis is stuck in a loop or the search is too complex. This is `synthInstance.maxHeartbeats`, a *search* budget. The differently worded `maximum recursion depth has been reached` is `maxRecDepth`, an elaboration/`whnf` recursion limit — raise it with `set_option maxRecDepth 2000 in` or restructure the term; a bigger synthesis budget does nothing for it.
 
 **Common causes:**
 - Circular instance dependencies

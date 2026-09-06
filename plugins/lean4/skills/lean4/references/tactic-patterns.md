@@ -68,7 +68,7 @@ Goal contains: `Measure`, `Measurable`, `μ`, `∫`, `Integrable`, `AEMeasurable
 
 Goal contains: `IsProbabilityMeasure`, `probability`, `condExp`
 
-- `have : IsProbabilityMeasure μ := ...` - Provide instance (plain `have` registers it)
+- `have : IsProbabilityMeasure μ := ⟨measure_univ_proof⟩` - Supply the instance with its proof (plain `have` registers it; `inferInstance` only freezes one that already synthesizes)
 - `ae_eq_condExp_of_forall_setIntegral_eq` - Conditional expectation uniqueness via set integrals (there is no `condExp_unique`)
 - `measurability` - Check measurability
 

@@ -81,7 +81,7 @@ let mW : MeasurableSpace Ω := MeasurableSpace.comap W m0
    - Robust: Rewrite to `indicator` and use `Integrable.indicator`
 
 5. **❌ Don't use `set` with `MeasurableSpace.comap ... inferInstance`**
-   - Bug: `inferInstance` captures snapshot that drifts from ambient, causing `inst✝⁶ vs inferInstance` errors
+   - Bug: the comap is elaborated against whichever `MeasurableSpace Ω` local is newest at that point; facts elaborated before and after a new class-typed local then disagree (`inst✝⁶ vs inferInstance`). The captured value itself never changes — later locals change what LATER elaboration picks
    - Fix: Inline comaps everywhere, freeze ambient with `let` for explicit passing only
    - Details: See "The `inferInstance` Drift Trap" pattern below
 
@@ -283,7 +283,7 @@ Type mismatch:
 but expected       @MeasurableSet Ω inferInstance (η ⁻¹' t)
 ```
 
-**Root cause:** `inferInstance` inside `set` creates a fresh instance different from the ambient `inst✝⁶`.
+**Root cause:** not a mutating `inferInstance` — an elaborated value is stable. Each `set`/`let` of a `MeasurableSpace Ω` adds a newer class-typed local, so facts elaborated *afterwards* resolve `inferInstance` to that local while earlier facts still mention the ambient `inst✝⁶`. Name the ambient instance and state ambient facts with `@` (Solution 2 in instance-pollution.md) and the two sides agree; `set` itself is not categorically unusable.
 
 **❌ What DOESN'T work:**
 ```lean
@@ -349,12 +349,14 @@ have : ∫ x in s, μ[g|m] x ∂μ = ∫ x in s, g x ∂μ :=
   setIntegral_condExp (μ := μ) (m := m) (hm := hm) (hs := hs) (hf := hg)
 ```
 
-**Wrapper to avoid parameter drift:**
+**Wrapper to avoid parameter drift** (name the ambient space — `hm : m ≤ ‹_›` resolves to `m ≤ m`, the exact trap this reference warns about; state `hs` for `m`; the finite-measure assumption supplies `SigmaFinite (μ.trim hm)`):
 ```lean
-lemma setIntegral_condExp_eq (μ : Measure Ω) (m : MeasurableSpace Ω) (hm : m ≤ ‹_›)
-    {s : Set Ω} (hs : MeasurableSet s) {g : Ω → ℝ} (hg : Integrable g μ) :
-  ∫ x in s, μ[g|m] x ∂μ = ∫ x in s, g x ∂μ := by
-  simpa using setIntegral_condExp (μ := μ) (m := m) (hm := hm) (hs := hs) (hf := hg)
+lemma setIntegral_condExp_eq {Ω : Type*} [m₀ : MeasurableSpace Ω]
+    {μ : Measure Ω} [IsFiniteMeasure μ]
+    {m : MeasurableSpace Ω} (hm : m ≤ m₀)
+    {s : Set Ω} (hs : MeasurableSet[m] s) {g : Ω → ℝ} (hg : Integrable g μ) :
+    ∫ x in s, (μ[g|m]) x ∂μ = ∫ x in s, g x ∂μ :=
+  setIntegral_condExp hm hg hs
 ```
 
 ---
@@ -713,13 +715,15 @@ have := condExp_ae_eq_integral_condExpKernel (μ := μ) (m := tailSigma X) (hm :
 **Manual instances:**
 ```lean
 -- Provide instance explicitly
-have : IsProbabilityMeasure (μ.map f) := isProbabilityMeasure_map hf hμ
+have : IsProbabilityMeasure (μ.map f) := Measure.isProbabilityMeasure_map hf
+-- `[IsProbabilityMeasure μ]` is an instance argument, not a hypothesis to pass; for
+-- `hf : Measurable f` use `hf.aemeasurable`
 ```
 
 **Type annotations:**
 ```lean
 -- Help elaborator with type
-((μ.map f : Measure β) : Type)
+(μ.map f : Measure β)   -- a measure is a value, never `: Type`
 ```
 
 ### 8. API Discovery with lean_leanfinder
@@ -785,7 +789,7 @@ sorry  -- TODO: Need measurableSet_preimage hf hs
 ## Mathlib Lemma Quick Reference
 
 **Conditional expectation (scalar form):**
-- `integrable_condExp`, `stronglyMeasurable_condExp`, `aestronglyMeasurable_condExp`
+- `integrable_condExp`, `stronglyMeasurable_condExp`, `stronglyMeasurable_condExp.aestronglyMeasurable` (there is no `aestronglyMeasurable_condExp`)
 - `setIntegral_condExp` - set-integral projection (wrap as `setIntegral_condExp_eq`)
 
 **Conditional expectation (kernel form):**
@@ -796,7 +800,7 @@ sorry  -- TODO: Need measurableSet_preimage hf hs
 **Kernels and pushforward:**
 - `Kernel.measurable_coe` - kernel evaluation at measurable set is measurable
 - `Measure.map_apply` - pushforward characterization: `(μ.map f) s = μ (f ⁻¹' s)`
-- `isProbabilityMeasure_map` - probability preserved by pushforward
+- `Measure.isProbabilityMeasure_map hf` - probability preserved by pushforward (`hf : AEMeasurable f μ`; the probability assumption is an instance argument)
 - `measurableSet_preimage` - preimage of measurable set is measurable (function syntax!)
 
 **A.E. boundedness:**
