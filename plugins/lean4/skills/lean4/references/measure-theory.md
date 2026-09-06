@@ -61,7 +61,7 @@ lemma foo {Ω γ : Type*} [mΩ : MeasurableSpace Ω] [mγ : MeasurableSpace γ]
   let mW : MeasurableSpace Ω := MeasurableSpace.comap W mγ
   have hmW_le : mW ≤ mΩ := hW.comap_le
 ```
-If you cannot change the signature, `let m0 : MeasurableSpace Ω := ‹MeasurableSpace Ω›` recovers a name for the ambient instance.
+If you cannot change the signature, `let m0 : MeasurableSpace Ω := ‹MeasurableSpace Ω›` recovers a name for the ambient instance — `‹…›` picks the currently selected local instance, so it must be the first line, before any other `MeasurableSpace Ω` local exists.
 
 ---
 
@@ -267,8 +267,10 @@ theorem my_theorem {Ω β γ : Type*} [m0 : MeasurableSpace Ω] [mβ : Measurabl
 -- Tier 2: m0 versions (for @ notation)
 have hBpre_m0 : @MeasurableSet Ω m0 (Z ⁻¹' B) := hB.preimage hZ_m0
 
--- Tier 3: Ambient versions (for mathlib lemmas that infer instances)
-have hBpre : MeasurableSet (Z ⁻¹' B) := by simpa [m0] using hBpre_m0
+-- Tier 3: Ambient versions (for mathlib lemmas that infer instances). Keep the
+-- structure explicit: a bare `MeasurableSet` here selects the newest local (mZW),
+-- and `simpa [m0]` is rejected when `m0` is a parameter rather than a `let`.
+have hBpre : MeasurableSet[m0] (Z ⁻¹' B) := hBpre_m0
 
 -- Use ambient version with mathlib:
 have := integral_indicator hBpre ...  -- No expensive unification!

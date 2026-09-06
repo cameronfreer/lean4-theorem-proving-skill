@@ -58,7 +58,7 @@ failed to synthesize instance
 
 **Common scenarios:**
 - Working with sub-σ-algebras: `m ≤ m₀` but Lean can't infer instances on `m`
-- Trimmed measures: check whether synthesis already succeeds — `IsFiniteMeasure (μ.trim hm)` is a Mathlib instance now, and `SigmaFinite (μ.trim hm)` follows from it
+- Trimmed measures: check whether synthesis already succeeds — given `[IsFiniteMeasure μ]`, `IsFiniteMeasure (μ.trim hm)` is a Mathlib instance now, and `SigmaFinite (μ.trim hm)` follows from it (`[SigmaFinite μ]` alone is not enough)
 - Conditional expectations requiring multiple measure properties
 
 **Solutions:**

@@ -157,3 +157,29 @@ example {Ω : Type*} {m₀ : MeasurableSpace Ω} {μ : Measure Ω} [SigmaFinite 
     {m : MeasurableSpace Ω} (hm : m ≤ m₀) : True := by
   have : SigmaFinite (μ.trim hm) := inferInstance
   trivial
+
+-- instance-pollution.md Solution 2 / measure-theory.md three-tier recipe, with
+-- the ambient instance as a NAMED PARAMETER (not a `let`): `hZ` already has the
+-- `@Measurable Ω β m0 _ Z` type, and the Tier-3 ambient fact keeps the structure
+-- explicit with `MeasurableSet[m0]` (a bare `MeasurableSet` selects the newest
+-- local, mZW).
+example {Ω β γ : Type*} [m0 : MeasurableSpace Ω] [mβ : MeasurableSpace β]
+    [mγ : MeasurableSpace γ] (Z : Ω → β) (W : Ω → γ) (hZ : Measurable Z)
+    (hW : Measurable W) (B : Set β) (hB : MeasurableSet B) : True := by
+  have hZ_m0 : @Measurable Ω β m0 _ Z := hZ
+  have hBpre_m0 : @MeasurableSet Ω m0 (Z ⁻¹' B) := hB.preimage hZ_m0
+  let mW  : MeasurableSpace Ω := MeasurableSpace.comap W mγ
+  let mZW : MeasurableSpace Ω := MeasurableSpace.comap (fun ω ↦ (Z ω, W ω)) (mβ.prod mγ)
+  have hmW_le : mW ≤ m0 := hW.comap_le
+  have hBpre : MeasurableSet[m0] (Z ⁻¹' B) := hBpre_m0
+  trivial
+
+-- ❌ Negative control (executable): `simpa [m0]` with `m0` a parameter.
+/--
+error: Invalid argument: Variable `m0` is not a proposition or let-declaration
+-/
+#guard_msgs in
+example {Ω β : Type*} [m0 : MeasurableSpace Ω] [MeasurableSpace β]
+    (Z : Ω → β) (hZ : Measurable Z) : True := by
+  have hZ_m0 : @Measurable Ω β m0 _ Z := by simpa [m0] using hZ
+  trivial

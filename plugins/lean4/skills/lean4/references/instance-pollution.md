@@ -2,7 +2,7 @@
 
 ## Quick Fix (TL;DR)
 
-1. **Name the ambient instance in the declaration:** `[m0 : MeasurableSpace Ω]` (recovery when the signature is not yours: `let m0 : MeasurableSpace Ω := ‹MeasurableSpace Ω›`)
+1. **Name the ambient instance in the declaration:** `[m0 : MeasurableSpace Ω]` (recovery when the signature is not yours: `let m0 : MeasurableSpace Ω := ‹MeasurableSpace Ω›` — `‹…›` picks the currently selected local instance, so do it as the first line, before any other `MeasurableSpace Ω` local exists)
 2. **Use @ for ambient facts:** `@Measurable Ω β m0 _ Z`
 3. **Then define sub-σ-algebras:** `let mSub := MeasurableSpace.comap Z mβ` — `comap` pulls the **codomain** structure (`mβ : MeasurableSpace β` for `Z : Ω → β`) back along `Z`; the ambient `m0 : MeasurableSpace Ω` is the wrong type there
 4. **Introduce class-typed locals only after the ambient facts are pinned** - `set`/`let` of a `MeasurableSpace Ω` is fine once `m0` is named and ambient facts use `@`; the problem is ordering, not the keyword
@@ -120,7 +120,9 @@ theorem test (Ω β : Type*) [m0 : MeasurableSpace Ω] [mβ : MeasurableSpace β
   --   let m0 : MeasurableSpace Ω := ‹MeasurableSpace Ω›
 
   -- ✅ STEP 1: Do ALL ambient work using m0 explicitly with @
-  have hZ_m0 : @Measurable Ω β m0 _ Z := by simpa [m0] using hZ
+  -- `m0` is a parameter, not a `let`: `hZ` already has this type (`simpa [m0]`
+  -- would be rejected — "Variable `m0` is not a proposition or let-declaration")
+  have hZ_m0 : @Measurable Ω β m0 _ Z := hZ
   have hBpre : @MeasurableSet Ω m0 (Z ⁻¹' B) := hB.preimage hZ_m0
   have hCpre : @MeasurableSet Ω m0 (W ⁻¹' C) := hC.preimage hW_m0
   -- ... all other ambient facts
