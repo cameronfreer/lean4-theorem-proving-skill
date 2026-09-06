@@ -397,9 +397,10 @@ def load_output_schema(path: str | None = None) -> dict[str, Any]:
     Raises SchemaUnavailableError (→ exit 4) on any unusable installed contract:
     unreadable/malformed JSON, ill-typed schema machinery (#189), wrong
     identity/root shape, or a keyword the runtime validator would silently
-    ignore. Any other exception raised while inspecting the parsed schema is
-    also mapped to SchemaUnavailableError: a corrupted contract must never
-    escape as a traceback.
+    ignore. Residual attribute, type, key, or value errors raised while
+    inspecting the parsed schema are also mapped to SchemaUnavailableError,
+    so those corrupted-contract shapes surface as exit 4 rather than a
+    traceback.
     """
     resolved = path or _default_schema_path()
     try:
