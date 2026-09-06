@@ -247,16 +247,36 @@ class Project:
             return hashlib.sha256(f.read()).hexdigest()
 
     # -- processes ---------------------------------------------------------
-    def run(self, argv: list[str], *, stdin: str = "") -> Run:
-        proc = subprocess.run(
-            argv,
-            cwd=self.root,
-            input=stdin,
-            capture_output=True,
-            text=True,
-            timeout=TIMEOUT,
-            check=False,
-        )
+    def run(self, argv: list[str], *, stdin: str = "", timeout: float = TIMEOUT) -> Run:
+        try:
+            proc = subprocess.run(
+                argv,
+                cwd=self.root,
+                input=stdin,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            # Record the attempt (with whatever partial output exists) BEFORE
+            # propagating, so COMMANDS.log shows the command that hung.
+            def _txt(b: object) -> str:
+                return (
+                    b.decode("utf-8", "replace")
+                    if isinstance(b, bytes)
+                    else str(b or "")
+                )
+
+            self.log.append(
+                Run(
+                    argv,
+                    -1,
+                    _txt(exc.stdout),
+                    _txt(exc.stderr) + f"\n[TIMEOUT after {timeout}s]",
+                )
+            )
+            raise
         r = Run(argv, proc.returncode, proc.stdout, proc.stderr)
         self.log.append(r)
         return r
@@ -351,10 +371,20 @@ class LeanFileGateCase(unittest.TestCase):
         if sys.version_info < (3, 11):
             raise AssertionError("Python 3.11+ required (transaction helper floor)")
 
-    def setUp(self) -> None:
+    def _new_project(self) -> None:
+        """Create the private fixture copy and register export-or-cleanup.
+
+        Registered via addCleanup BEFORE the baseline build so it also runs
+        when setUp itself fails (unittest skips tearDown in that case) — a
+        failed baseline must still be exported for diagnosis.
+        """
         self._tmp = tempfile.mkdtemp(prefix="lean_file_gate.")
         self.p = Project(os.path.join(self._tmp, "proj"))
         shutil.copytree(FIXTURE, self.p.root)
+        self.addCleanup(self._export_or_cleanup)
+
+    def setUp(self) -> None:
+        self._new_project()
         # A successful BASELINE build first, so later negative controls are
         # attributable to the fixture change, not to a broken setup.
         r = self.p.lake_build("Gate.B")
@@ -363,20 +393,30 @@ class LeanFileGateCase(unittest.TestCase):
             os.path.exists(self.p.olean("Gate.B")), "baseline produced no Gate.B .olean"
         )
 
-    def tearDown(self) -> None:
-        # Keep the project on failure so the command/output/source state can be
-        # inspected (the assertion message already carries the essentials).
+    def _failed(self) -> bool:
+        # Called from a cleanup. unittest runs each cleanup inside its own
+        # testPartExecutor, which RESETS `_Outcome.success` to True for the
+        # duration of the cleanup — so that flag is useless here. The result
+        # lists are reliable: setUp / body / tearDown failures are recorded on
+        # the result immediately (before cleanups run).
         outcome = getattr(self, "_outcome", None)
-        failed = False
-        if outcome is not None:
-            result = getattr(outcome, "result", None)
-            if result is not None:
-                failed = any(t is self for t, _ in result.failures + result.errors)
+        result = getattr(outcome, "result", None)
+        if result is None:
+            return False
+        recorded = list(getattr(result, "failures", [])) + list(
+            getattr(result, "errors", [])
+        )
+        return any(t is self for t, _ in recorded)
+
+    def _export_or_cleanup(self) -> None:
+        """Export the project on failure (CI) or keep/delete it (local)."""
+        failed = self._failed()
         keep_dir = os.environ.get("LEAN_FILE_GATE_KEEP_DIR")
         if failed and keep_dir:
             # CI: export the failing project (sources AND .lake artifacts —
             # the artifact state is part of the evidence) plus a transcript
-            # of every command run, so the failure survives the runner.
+            # of every command run (timed-out ones included), so the failure
+            # survives the runner.
             dest = os.path.join(keep_dir, self.id().replace(".", "_"))
             shutil.copytree(self.p.root, dest, dirs_exist_ok=True)
             with open(os.path.join(dest, "COMMANDS.log"), "w", encoding="utf-8") as f:
@@ -726,17 +766,22 @@ class T4Layouts(LeanFileGateCase):
         self.assertExit(
             self.p.lake_lean("src/Custom/Inner.lean"), 0, "custom srcDir module"
         )
+        # Target-spelling control while the project is still VALID, so the
+        # failure below is attributable to the target name, not to a false
+        # theorem: the real module name builds, the hand-derived one does not.
+        self.assertExit(self.p.lake_build("Custom.Inner"), 0, "real module name builds")
+        r = self.p.lake_build("src.Custom.Inner")
+        self.assertNotExit(r, 0, "naive / -> . derivation must fail")
+        self.assertIn(
+            "unknown",
+            r.output.lower(),
+            "failure must be an unresolved target, not a build error:\n" + r.describe(),
+        )
         self._stale_a()
         self.assertNotExit(
             self.p.lake_lean("src/Custom/Inner.lean"),
             0,
             "stale import through custom srcDir",
-        )
-        # The hand-derived name is NOT a target; the source path is.
-        self.assertNotExit(
-            self.p.lake_build("src.Custom.Inner"),
-            0,
-            "naive / -> . derivation must fail",
         )
 
     def test_scratch_file_outside_every_lib(self) -> None:
@@ -1130,6 +1175,61 @@ class T8Matcher(unittest.TestCase):
         )
         ok = "'T_counterexample' depends on axioms: [propext, Classical.choice, Quot.sound]\n"
         self.assertEqual(decide(0, ok, "T_counterexample").status, "certified")
+
+
+# ---------------------------------------------------------------------------
+# 9. Harness self-checks (no Lean needed): failure evidence must be retained
+#    even when setUp fails, and timed-out commands must reach the transcript.
+# ---------------------------------------------------------------------------
+
+
+class T9Harness(unittest.TestCase):
+    def test_timed_out_command_is_logged_before_raising(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            p = Project(d)
+            with self.assertRaises(subprocess.TimeoutExpired):
+                p.run([sys.executable, "-c", "import time; time.sleep(5)"], timeout=0.3)
+            self.assertEqual(len(p.log), 1)
+            self.assertEqual(p.log[-1].returncode, -1)
+            self.assertIn("TIMEOUT after 0.3s", p.log[-1].stderr)
+            self.assertIn("time.sleep(5)", p.log[-1].describe())
+
+    def test_setup_failure_is_exported_to_keep_dir(self) -> None:
+        # A failed BASELINE (setUp) must still export the project + transcript:
+        # unittest does not run tearDown after a setUp failure, so the export
+        # is registered with addCleanup inside _new_project().
+        class _SetUpFails(LeanFileGateCase):
+            @classmethod
+            def setUpClass(cls) -> None:  # no toolchain needed for this check
+                pass
+
+            def setUp(self) -> None:
+                self._new_project()
+                self.p.log.append(Run(["lake", "build", "Gate.B"], 1, "", "simulated"))
+                raise AssertionError("simulated baseline failure")
+
+            def test_never_runs(self) -> None:
+                raise AssertionError("body must not run after a failed setUp")
+
+        with tempfile.TemporaryDirectory() as keep:
+            old = os.environ.get("LEAN_FILE_GATE_KEEP_DIR")
+            os.environ["LEAN_FILE_GATE_KEEP_DIR"] = keep
+            try:
+                result = unittest.TestResult()
+                _SetUpFails("test_never_runs").run(result)
+            finally:
+                if old is None:
+                    del os.environ["LEAN_FILE_GATE_KEEP_DIR"]
+                else:
+                    os.environ["LEAN_FILE_GATE_KEEP_DIR"] = old
+            self.assertEqual(len(result.failures), 1, result.failures)
+            self.assertIn("simulated baseline failure", result.failures[0][1])
+            exported = os.listdir(keep)
+            self.assertEqual(len(exported), 1, exported)
+            dest = os.path.join(keep, exported[0])
+            self.assertTrue(os.path.exists(os.path.join(dest, "lakefile.toml")))
+            with open(os.path.join(dest, "COMMANDS.log"), encoding="utf-8") as f:
+                self.assertIn("lake build Gate.B", f.read())
 
 
 if __name__ == "__main__":
